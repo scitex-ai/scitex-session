@@ -32,7 +32,7 @@ def get_scitex_version() -> str:
 def get_debug_mode() -> bool:
     """Get debug mode from configuration."""
     try:
-        from scitex.io._load import load
+        from scitex_io._load import load
 
         IS_DEBUG_PATH = "./config/IS_DEBUG.yaml"
         if _os.path.exists(IS_DEBUG_PATH):

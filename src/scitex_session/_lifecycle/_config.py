@@ -87,7 +87,7 @@ def save_configs(CONFIG) -> None:
     which would cause false "missing" errors since these files are saved
     in RUNNING/ but then moved to FINISHED_SUCCESS/.
     """
-    from scitex.io._save import save as scitex_io_save
+    from scitex_io._save import save as scitex_io_save
 
     # Convert to dict with all keys (including private ones) for saving
     config_dict = (

@@ -37,7 +37,7 @@ if is_headless:
 
 
 try:
-    from scitex.plt.utils._configure_mpl import configure_mpl as _configure_mpl
+    from figrecipe.utils._configure_mpl import configure_mpl as _configure_mpl
 except ImportError:
     # No-op fallback when the umbrella `scitex` package isn't installed.
     # configure_mpl normally tunes rcParams + colors via scitex.dict; without

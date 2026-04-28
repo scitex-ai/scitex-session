@@ -31,7 +31,7 @@ logger = getLogger(__name__)
 
 # For development code flow analysis
 try:
-    from scitex.dev._analyze_code_flow import analyze_code_flow
+    from scitex_dev._analyze_code_flow import analyze_code_flow
 except ImportError:
 
     def analyze_code_flow(file):
@@ -108,7 +108,7 @@ def start(
             caller_file = inspect.stack()[1].filename
             if "ipython" in caller_file.lower():
                 try:
-                    from scitex.gen._detect_notebook_path import get_notebook_path
+                    from scitex_gen._detect_notebook_path import get_notebook_path
 
                     nb_path = get_notebook_path()
                     caller_file = (

@@ -379,7 +379,7 @@ def _create_parser(func: Callable) -> argparse.ArgumentParser:
     try:
         import matplotlib.pyplot as plt_temp
 
-        from scitex.plt.utils._configure_mpl import configure_mpl
+        from figrecipe.utils._configure_mpl import configure_mpl
 
         _, colors_dict = configure_mpl(plt_temp)
         # Show all color keys

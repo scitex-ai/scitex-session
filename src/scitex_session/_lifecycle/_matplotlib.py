@@ -84,8 +84,7 @@ def setup_matplotlib(
             )
 
         # Replace matplotlib.pyplot with scitex.plt to get wrapped functions
-        import scitex.plt as stx_plt
-
+        import scitex_plt as stx_plt
         return stx_plt, COLORS
     return plt, None
 

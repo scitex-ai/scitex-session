@@ -62,7 +62,7 @@ def setup_configs(
         sdir_out = None
 
     # Load YAML configs from ./config/*.yaml
-    from scitex.io import load_configs
+    from scitex_io import load_configs
 
     CONFIGS = load_configs(IS_DEBUG).to_dict()
 

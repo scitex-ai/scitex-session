@@ -146,7 +146,7 @@ def start(
     if sys is not None:
         from scitex_io._flush import flush
 
-        from scitex.logging import tee
+        from scitex_logging import tee
 
         flush(sys)
         sys.stdout, sys.stderr = tee(sys, sdir=sdir, verbose=verbose)
@@ -189,7 +189,7 @@ def start(
     print_header(ID, PID, caller_file, args, CONFIGS, verbose)
 
     if show_execution_flow:
-        from scitex.str import printc as _printc
+        from scitex_str import printc as _printc
 
         structure = analyze_code_flow(caller_file)
         _printc(structure)
@@ -241,7 +241,7 @@ def _redirect_logging_handlers(sys) -> None:
 def _start_verification(CONFIG) -> None:
     """Start verification tracking for this session."""
     try:
-        from scitex.clew import on_session_start
+        from scitex_clew import on_session_start
 
         session_id = CONFIG.get("ID", "unknown")
         file_path = CONFIG.get("FILE")

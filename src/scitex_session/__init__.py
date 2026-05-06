@@ -30,7 +30,7 @@ Usage:
     # Session management (replaces scitex.session.start/close)
     import sys
     import matplotlib.pyplot as plt
-    from scitex import session
+    import scitex_session as session
 
     # Start a session
     CONFIG, sys.stdout, sys.stderr, plt, COLORS, rng = session.start(sys, plt)

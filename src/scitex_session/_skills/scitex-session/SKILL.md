@@ -19,7 +19,8 @@ tags: [scitex-session, scitex-package]
 
 `@session` decorator for reproducible experiment lifecycle. Wrap `def main(...)`; the decorator parses CLI args, loads `config/*.yaml`, configures matplotlib + logging, runs the function, and writes outputs to `script_out/<status>/<session_id>/`. The full SciTeX workflow contract in one decorator. Drop-in replacement for hand-rolled argparse + yaml.safe_load + logging.basicConfig + os.makedirs preambles.
 
-See README.md and the package's public `__init__.py` for the full
-function list. This skill leaf exists so agents discover the package
-exists and roughly what shape it has — refer to the source for
-signatures.
+## Index
+
+- [01_installation.md](01_installation.md) — pip install, standalone vs umbrella, verify
+- [02_quick-start.md](02_quick-start.md) — first `@session` in 30 seconds
+- [03_python-api.md](03_python-api.md) — decorator, `start`/`close`, `SessionManager`, `INJECTED`

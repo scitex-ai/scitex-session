@@ -32,22 +32,28 @@
 pip install scitex-session
 ```
 
-## Quick Start
+## Architecture
 
-```python
-import scitex_session as sess
+```
+src/scitex_session/
+├── __init__.py        # public re-exports (session, INJECTED, start, close, ...)
+├── _decorator.py      # @session — auto-CLI + DI + output-dir lifecycle
+├── _manager.py        # SessionManager (class-style alternative)
+├── _lifecycle/        # start / close / FINISHED_SUCCESS dir tree
+└── template.py        # boilerplate template for new scripts
+```
 
-@sess.session
-def main(
-    param1="default",
-    CONFIG=sess.INJECTED,
-    plt=sess.INJECTED,
-    logger=sess.INJECTED,
-    rng=sess.INJECTED,
-):
-    """Docstring becomes --help."""
-    logger.info("hi")
-    return 0
+```mermaid
+flowchart LR
+    fn["@sess.session\ndef main(...)"] --> cli["auto-CLI\n(argparse from signature)"]
+    cli --> inject["DI: CONFIG / logger / plt / rng"]
+    cfg["./config/*.yaml"] --> inject
+    inject --> body["main() body"]
+    body --> save["stx.io.save"]
+    save --> rundir[("script_out/FINISHED_SUCCESS/<ID>/")]
+    rundir --> cfgsnap[("CONFIGS/CONFIG.yaml")]
+    rundir --> logs[("logs/{stdout,stderr}.log")]
+    rundir --> outputs[("results.csv, plots, ...")]
 ```
 
 ## 1 Interfaces
@@ -74,6 +80,42 @@ mgr = sess.SessionManager()
 ```
 
 </details>
+
+## Demo
+
+```mermaid
+sequenceDiagram
+    participant User as $ python script.py --param1 X
+    participant Dec as @sess.session
+    participant Main as main()
+    participant FS as Filesystem
+    User->>Dec: invoke
+    Dec->>Dec: parse args, fix RNG, build CONFIG
+    Dec->>FS: mkdir script_out/RUNNING_<ID>/
+    Dec->>Main: call(CONFIG, logger, rng, plt)
+    Main->>FS: stx.io.save(...)
+    Main-->>Dec: return 0
+    Dec->>FS: rename → FINISHED_SUCCESS/<ID>/
+    Dec->>FS: write CONFIGS/CONFIG.yaml + logs/
+```
+
+## Quick Start
+
+```python
+import scitex_session as sess
+
+@sess.session
+def main(
+    param1="default",
+    CONFIG=sess.INJECTED,
+    plt=sess.INJECTED,
+    logger=sess.INJECTED,
+    rng=sess.INJECTED,
+):
+    """Docstring becomes --help."""
+    logger.info("hi")
+    return 0
+```
 
 ## Status
 

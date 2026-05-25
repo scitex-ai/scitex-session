@@ -36,6 +36,7 @@ def session(
     agg: bool = True,
     notify: bool = False,
     sdir_suffix: str = None,
+    archive_format: str = None,
     **session_kwargs,
 ) -> Callable:
     """Decorator to wrap function in scitex session.
@@ -120,6 +121,7 @@ def session(
                 agg=agg,
                 notify=notify,
                 sdir_suffix=sdir_suffix,
+                archive_format=archive_format,
                 **session_kwargs,
             )
 
@@ -144,6 +146,7 @@ def _run_with_session(
     agg: bool,
     notify: bool,
     sdir_suffix: str,
+    archive_format: str = None,
     **session_kwargs,
 ) -> Any:
     """Run function with full session management."""
@@ -271,6 +274,7 @@ def _run_with_session(
                 notify=notify,
                 message=f"{func.__name__} completed",
                 exit_status=exit_status,
+                archive_format=archive_format,
             )
         except SystemExit:
             # Allow normal exits

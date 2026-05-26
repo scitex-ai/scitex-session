@@ -40,6 +40,7 @@ from ._lifecycle._archive import (
     restore_existing as _restore_existing,
     restore_session_archive as _restore_session_archive,
 )
+from ._lifecycle._close import running2finished as _running2finished
 
 __all__ = ["mcp", "main"]
 
@@ -173,6 +174,53 @@ async def restore_session_archive(
         remove_archive=remove_archive,
     )
     return json.dumps({"dest_dir": str(p)})
+
+
+@mcp.tool()
+async def running2finished(
+    config: dict,
+    exit_status: Optional[int] = None,
+    remove_src_dir: bool = True,
+    max_wait: int = 60,
+    archive_format: Optional[str] = None,
+) -> str:
+    """Move a session dir from RUNNING/ to FINISHED_SUCCESS/ (or FINISHED_ERROR/).
+
+    Mirrors ``scitex_session.running2finished``. The caller passes the
+    session ``CONFIG`` dict (must have ``SDIR_RUN`` pointing at the
+    RUNNING/<session>/ directory). Useful as a maintenance tool for
+    sessions whose ``close()`` was interrupted before the move
+    completed.
+
+    Parameters
+    ----------
+    config : dict
+        Session configuration. Must contain ``SDIR_RUN``.
+    exit_status : int, optional
+        ``0`` → FINISHED_SUCCESS; ``1`` → FINISHED_ERROR; ``None`` → FINISHED.
+    remove_src_dir : bool, default True
+        Remove the source ``RUNNING/<session>/`` after a verified copy.
+    max_wait : int, default 60
+        Maximum seconds to wait for the copy operation.
+    archive_format : str, optional
+        If set (e.g. ``"tar.gz"``), collapse the destination dir into a
+        single archive file.
+
+    Returns
+    -------
+    str
+        JSON-encoded ``{"sdir_run": "<new path>"}`` (the updated
+        ``CONFIG["SDIR_RUN"]``).
+    """
+    updated = _running2finished(
+        CONFIG=dict(config),
+        exit_status=exit_status,
+        remove_src_dir=remove_src_dir,
+        max_wait=max_wait,
+        archive_format=archive_format,
+    )
+    sdir_run = updated.get("SDIR_RUN") if isinstance(updated, dict) else None
+    return json.dumps({"sdir_run": str(sdir_run) if sdir_run else None})
 
 
 # --------------------------------------------------------------------- #

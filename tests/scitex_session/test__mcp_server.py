@@ -140,6 +140,17 @@ class TestRegisteredTools:
         # Assert
         assert "restore_session_archive" in names
 
+    def test_running2finished_registered(self):
+        # Arrange — running2finished is a lifecycle-state helper but
+        # exposed as an MCP tool so the §6 Python-API ↔ MCP parity rule
+        # has the canonical 5/9 → 4/9 missing coverage. Useful as a
+        # maintenance tool: move a stuck RUNNING/<session>/ dir into
+        # FINISHED_{SUCCESS,ERROR}/.
+        # Act
+        names = _list_tool_names()
+        # Assert
+        assert "running2finished" in names
+
     def test_skills_list_registered(self):
         # Arrange — §5 mandates `skills_list` on every SciTeX MCP server.
         # Act

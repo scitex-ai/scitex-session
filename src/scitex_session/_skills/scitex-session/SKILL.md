@@ -11,6 +11,8 @@ interfaces:
   http: 0
 canonical-location: scitex-session/src/scitex_session/_skills/scitex-session/SKILL.md
 tags: [scitex-session, scitex-package]
+version: 0.1.5
+exported_via: installed
 ---
 
 > **Interfaces:** Python ⭐⭐⭐ · CLI ⭐ · MCP — · Skills ⭐⭐ · Hook — · HTTP —

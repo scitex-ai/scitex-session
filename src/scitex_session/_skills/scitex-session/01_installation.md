@@ -3,6 +3,8 @@ description: |
   [TOPIC] Installing scitex-session
   [DETAILS] pip install (standalone vs umbrella) and how to verify the install.
 tags: [scitex-session-installation]
+version: 0.1.5
+exported_via: installed
 ---
 
 # Installation

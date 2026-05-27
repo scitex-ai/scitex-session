@@ -3,6 +3,8 @@ description: |
   [TOPIC] Public Python API of scitex-session
   [DETAILS] The `@session` decorator, manual `start()`/`close()`, the `SessionManager` class, the `INJECTED` sentinel, and `running2finished()`.
 tags: [scitex-session-python-api]
+version: 0.1.5
+exported_via: installed
 ---
 
 # Python API

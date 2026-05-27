@@ -3,6 +3,8 @@ description: |
   [TOPIC] First `@session` in 30 seconds
   [DETAILS] Wrap `main()` with the decorator; the lifecycle handles CLI parsing, config loading, matplotlib + logging setup, and writes outputs to `script_out/<status>/<session_id>/`.
 tags: [scitex-session-quick-start]
+version: 0.1.5
+exported_via: installed
 ---
 
 # Quick Start

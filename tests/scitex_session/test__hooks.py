@@ -262,31 +262,31 @@ class TestPublicApiExposure:
         # Arrange
         import scitex_session
 
-        # Act / Assert
-        assert (
-            scitex_session.register_session_start_hook
-            is _hooks.register_session_start_hook
-        )
+        # Act
+        attr = scitex_session.register_session_start_hook
+        # Assert
+        assert attr is _hooks.register_session_start_hook
 
     def test_register_close_hook_is_package_attribute(self):
         # Arrange
         import scitex_session
 
-        # Act / Assert
-        assert (
-            scitex_session.register_session_close_hook
-            is _hooks.register_session_close_hook
-        )
+        # Act
+        attr = scitex_session.register_session_close_hook
+        # Assert
+        assert attr is _hooks.register_session_close_hook
 
     def test_register_names_are_in_package_all(self):
         # Arrange
         import scitex_session
 
-        # Act / Assert
+        # Act
+        exported = set(scitex_session.__all__)
+        # Assert
         assert {
             "register_session_start_hook",
             "register_session_close_hook",
-        } <= set(scitex_session.__all__)
+        } <= exported
 
 
 # EOF

@@ -24,7 +24,6 @@ import pytest
 CROSS_PACKAGE_IMPORTS = [
     "scitex",
     "scitex.utils._notify",
-    "scitex_clew",
     "scitex_dev",
     "scitex_dict",
     "scitex_context",

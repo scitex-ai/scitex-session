@@ -205,9 +205,14 @@ from ._hooks import (  # noqa: E402
 )
 
 
-def _activate_observers() -> None:
+def _activate_observers(observers=None) -> None:
     """Activate lifecycle observers registered by OTHER packages under the
     ``scitex_session.observers`` entry-point group — WITHOUT importing them.
+
+    ``observers`` is an optional iterable of ``(name, 0-arg registrar)`` pairs
+    for explicit injection (and unit testing); when ``None`` it is discovered
+    from the ``scitex_session.observers`` entry-point group via
+    ``_discover_observer_registrars()``.
 
     The ``_hooks`` registry is the acyclic seam, but a subscriber only lands
     in it if something triggers its registration. clew installs a
@@ -232,32 +237,52 @@ def _activate_observers() -> None:
     import logging
 
     log = logging.getLogger(__name__)
-    try:
-        from importlib.metadata import entry_points
-    except ImportError:  # pragma: no cover
-        return
-    try:
-        eps = entry_points(group="scitex_session.observers")  # Python 3.10+
-    except TypeError:  # pragma: no cover — Python 3.9 signature
-        eps = entry_points().get("scitex_session.observers", [])
-    for ep in eps:
+    if observers is None:
+        observers = _discover_observer_registrars()
+    for name, registrar in observers:
         try:
-            registrar = ep.load()
             result = registrar()
-            log.debug("scitex_session.observers: activated %r -> %r",
-                      getattr(ep, "name", ep), result)
+            log.debug("scitex_session.observers: activated %r -> %r", name, result)
             if result is False:
                 log.warning(
                     "scitex_session.observers: %r returned False — observer "
                     "NOT registered (API skew / unavailable?)",
-                    getattr(ep, "name", ep),
+                    name,
                 )
         except Exception:  # pragma: no cover — never break the import
             log.warning(
                 "scitex_session.observers: failed to activate %r",
+                name,
+                exc_info=True,
+            )
+
+
+def _discover_observer_registrars() -> list:
+    """Load ``(name, 0-arg registrar)`` pairs from the
+    ``scitex_session.observers`` entry-point group. A registrar that fails to
+    *load* is logged and skipped (never fatal to the import)."""
+    import logging
+
+    log = logging.getLogger(__name__)
+    try:
+        from importlib.metadata import entry_points
+    except ImportError:  # pragma: no cover
+        return []
+    try:
+        eps = entry_points(group="scitex_session.observers")  # Python 3.10+
+    except TypeError:  # pragma: no cover — Python 3.9 signature
+        eps = entry_points().get("scitex_session.observers", [])
+    registrars = []
+    for ep in eps:
+        try:
+            registrars.append((getattr(ep, "name", ep), ep.load()))
+        except Exception:  # pragma: no cover
+            log.warning(
+                "scitex_session.observers: failed to load %r",
                 getattr(ep, "name", ep),
                 exc_info=True,
             )
+    return registrars
 
 
 # Self-activate registered lifecycle observers at import time (once per

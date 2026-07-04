@@ -204,6 +204,67 @@ from ._hooks import (  # noqa: E402
     unregister_session_start_hook,
 )
 
+
+def _activate_observers() -> None:
+    """Activate lifecycle observers registered by OTHER packages under the
+    ``scitex_session.observers`` entry-point group — WITHOUT importing them.
+
+    The ``_hooks`` registry is the acyclic seam, but a subscriber only lands
+    in it if something triggers its registration. clew installs a
+    ``sys.meta_path`` finder at *its own* import — which works only when the
+    user's script imports clew. The clean provenance idiom (``@session`` +
+    ``stx.io.save`` with no explicit clew calls) imports scitex_session but
+    NOT scitex_clew, so that finder never installs and the session observer
+    never subscribes. This scan closes that gap the same way scitex-io does:
+    on ``import scitex_session`` we discover each observer's 0-arg registrar
+    via entry-point METADATA and call it, so the subscription self-activates
+    from importing scitex_session alone. scitex_session NEVER imports its
+    observers by name — acyclicity holds (discovery via importlib.metadata).
+
+    Contract (``scitex_session.observers`` group): each entry point loads to
+    a ZERO-ARG callable returning ``bool``; it self-registers via
+    ``register_session_start_hook`` / ``register_session_close_hook`` and
+    MUST be idempotent (clew's meta_path finder may also register during
+    rollout — the registry dedups, so both paths net one registration). A
+    registrar that raises or returns False is LOGGED, never silent, never
+    fatal to the import.
+    """
+    import logging
+
+    log = logging.getLogger(__name__)
+    try:
+        from importlib.metadata import entry_points
+    except ImportError:  # pragma: no cover
+        return
+    try:
+        eps = entry_points(group="scitex_session.observers")  # Python 3.10+
+    except TypeError:  # pragma: no cover — Python 3.9 signature
+        eps = entry_points().get("scitex_session.observers", [])
+    for ep in eps:
+        try:
+            registrar = ep.load()
+            result = registrar()
+            log.debug("scitex_session.observers: activated %r -> %r",
+                      getattr(ep, "name", ep), result)
+            if result is False:
+                log.warning(
+                    "scitex_session.observers: %r returned False — observer "
+                    "NOT registered (API skew / unavailable?)",
+                    getattr(ep, "name", ep),
+                )
+        except Exception:  # pragma: no cover — never break the import
+            log.warning(
+                "scitex_session.observers: failed to activate %r",
+                getattr(ep, "name", ep),
+                exc_info=True,
+            )
+
+
+# Self-activate registered lifecycle observers at import time (once per
+# process). Runs after the register_* functions above are bound, so a
+# re-entrant ``import scitex_session`` inside a registrar resolves them.
+_activate_observers()
+
 # Export public API. ``start`` and ``run`` are intentionally omitted: the
 # decorator ``session`` is THE entry point; ``start``/``run`` are internal
 # (reach them via ``_start`` / ``_run`` if you must).

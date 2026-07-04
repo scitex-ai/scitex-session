@@ -219,4 +219,28 @@ class TestPublicSurfaceIntact:
         assert is_present
 
 
+def test_activate_observers_invokes_each_registered_registrar():
+    # Arrange
+    called = []
+    observers = [("clew", lambda: called.append("clew") or True)]
+    # Act
+    scitex_session._activate_observers(observers)
+    # Assert
+    assert called == ["clew"]
+
+
+def test_activate_observers_isolates_a_raising_registrar():
+    # Arrange
+    survived = []
+
+    def _boom():
+        raise RuntimeError("observer registration failed")
+
+    observers = [("boom", _boom), ("ok", lambda: survived.append("ok"))]
+    # Act
+    scitex_session._activate_observers(observers)
+    # Assert
+    assert survived == ["ok"]
+
+
 # EOF

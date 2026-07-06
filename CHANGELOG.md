@@ -7,6 +7,24 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **`SCITEX_SESSION_OUT_DIR` — redirect the session `_out` base off the
+  shared filesystem.** When set (and non-empty), the whole session output
+  base moves from the script-adjacent default
+  (`<script>_out/RUNNING/<ID>/`) to
+  `$SCITEX_SESSION_OUT_DIR/<script_stem>_out/RUNNING/<ID>/`. This lets
+  HPC / SLURM-array workloads point session output at node-local scratch
+  (e.g. `$TMPDIR`) so the entire lifecycle — the RUNNING tree, the
+  running→finished copytree, and any archive — stays off a shared parallel
+  filesystem (GPFS/Lustre) whose inode budget the per-run session trees
+  would otherwise exhaust. Default (unset) behaviour is byte-for-byte
+  unchanged. The trailing `RUNNING/<ID>/` segment is preserved, so
+  `SDIR_OUT` derivation, `running2finished`, and archiving are unaffected.
+  Documented in the package env-vars skill leaf
+  (`_skills/scitex-session/06_env-vars.md`). Driver: operator inode-exhaustion
+  incident 2026-07-05 (neurovista PAC drain).
+
 ### Changed
 
 - **API hygiene — `start` / `run` demoted to internal.** The

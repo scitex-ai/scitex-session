@@ -26,3 +26,4 @@ tags: [scitex-session, scitex-package]
 - [03_python-api.md](03_python-api.md) — the `@session` decorator (THE entry point), `close`, `SessionManager`, `INJECTED` (and the internal `_start`/`_run`)
 - [04_cli-reference.md](04_cli-reference.md) — `scitex-session-archive {compress,extract}`
 - [05_mcp-tools.md](05_mcp-tools.md) — six FastMCP tools (4 archive helpers + skills envelope)
+- [06_env-vars.md](06_env-vars.md) — environment variables; `SCITEX_SESSION_OUT_DIR` redirect for node-local scratch (HPC inode relief)

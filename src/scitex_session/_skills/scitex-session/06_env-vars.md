@@ -1,7 +1,14 @@
 ---
-name: scitex-session-env-vars
-description: Environment variables read by scitex-session at runtime — currently the SCITEX_SESSION_OUT_DIR redirect that points the session `_out` base at node-local scratch for HPC / SLURM-array workloads.
-tags: [scitex-session, env-vars]
+description: |
+  [TOPIC] scitex-session Environment Variables
+  [DETAILS] Every environment variable scitex-session reads at runtime,
+  per the ecosystem `SCITEX_<MODULE>_*` naming rule. Currently
+  `SCITEX_SESSION_OUT_DIR`, which redirects the whole session `_out`
+  base (RUNNING tree + running→finished copytree + archive) to a
+  resolved base such as node-local scratch — the HPC / SLURM-array inode
+  relief knob. Default unset ⇒ byte-for-byte the legacy script-adjacent
+  behaviour. Use when adding a new env var or auditing drift.
+tags: [scitex-session-env-vars]
 ---
 
 # scitex-session — Environment Variables

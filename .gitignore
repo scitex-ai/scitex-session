@@ -22,3 +22,6 @@ docs/sphinx/api/
 !.scitex/dev/
 .scitex/dev/*
 !.scitex/dev/config.yaml
+
+# Local env overrides (copy of .env.example)
+.env

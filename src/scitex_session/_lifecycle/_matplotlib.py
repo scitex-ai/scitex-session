@@ -37,17 +37,46 @@ if is_headless:
 
 from scitex_dev import try_import_optional
 
-_configure_mpl = try_import_optional("figrecipe.utils._configure_mpl", "configure_mpl")
-if _configure_mpl is None:
+
+def _noop_configure_mpl(plt, **kwargs):
     # No-op fallback when figrecipe (an optional dev/visualization dep)
     # isn't installed. configure_mpl normally tunes rcParams + colors via
     # scitex.dict; without it, matplotlib uses its defaults — sessions
     # still work.
-    def _configure_mpl(plt, **kwargs):
-        return plt, {}
+    return plt, {}
 
 
-configure_mpl = _configure_mpl
+_configure_mpl_cache = None
+
+
+def _resolve_configure_mpl():
+    """Lazily resolve figrecipe's ``configure_mpl`` (cached).
+
+    IMPORTANT: this import is deferred out of module scope. Importing
+    ``figrecipe.utils._configure_mpl`` eagerly pulls ``figrecipe.utils`` ->
+    ``figrecipe._api`` -> ``matplotlib.pyplot`` at *module import* time,
+    which in turn triggers matplotlib's font-cache build. Because this
+    module is on the ``scitex_session._mcp_server`` import path (session
+    MCP tools), that eager import darkened the umbrella MCP aggregator's
+    cold-start (SIF font-scan on every startup). Resolving it lazily —
+    only when a session actually configures matplotlib — keeps the mount
+    path matplotlib-free.
+    """
+    global _configure_mpl_cache
+    if _configure_mpl_cache is None:
+        resolved = try_import_optional(
+            "figrecipe.utils._configure_mpl", "configure_mpl"
+        )
+        _configure_mpl_cache = resolved if resolved is not None else _noop_configure_mpl
+    return _configure_mpl_cache
+
+
+def __getattr__(name):
+    # PEP 562: preserve the historical module-level ``configure_mpl``
+    # attribute for any external importer, now resolved lazily.
+    if name == "configure_mpl":
+        return _resolve_configure_mpl()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def setup_matplotlib(
@@ -71,7 +100,7 @@ def setup_matplotlib(
     """
     if plt is not None:
         plt.close("all")
-        _, COLORS = configure_mpl(plt, **mpl_kwargs)
+        _, COLORS = _resolve_configure_mpl()(plt, **mpl_kwargs)
         if "grey" in COLORS and "gray" not in COLORS:
             COLORS["gray"] = COLORS["grey"]
         elif "gray" in COLORS and "grey" not in COLORS:

@@ -137,6 +137,52 @@ def _find_user_caller_file(hint: Optional[str] = None) -> str:
     return hint or "unknown.py"
 
 
+# Environment variable that redirects the *whole* session ``_out`` base
+# away from the script-adjacent default. Documented in the package
+# env-vars skill leaf; see :func:`_resolve_out_base_dir`.
+_OUT_DIR_ENV = "SCITEX_SESSION_OUT_DIR"
+
+
+def _resolve_out_base_dir(caller_file: str, ID: str) -> str:
+    """Compute the session output directory ``<...>_out/RUNNING/<ID>/``.
+
+    By default the base is placed *adjacent to the caller script*:
+    ``<script_without_ext>_out/RUNNING/<ID>/``. Keeping a script's
+    outputs next to the script is the right default for interactive and
+    small-scale work.
+
+    When the environment variable ``SCITEX_SESSION_OUT_DIR`` is set (and
+    non-empty), the whole ``_out`` base is redirected underneath that
+    directory instead::
+
+        $SCITEX_SESSION_OUT_DIR/<script_stem>_out/RUNNING/<ID>/
+
+    This is the knob HPC / SLURM-array workloads use to point session
+    output at node-local scratch (e.g. ``/tmp`` or ``$TMPDIR``) so the
+    entire session lifecycle — the RUNNING tree, the running->finished
+    copytree, and any archive step — stays off a shared parallel
+    filesystem (GPFS/Lustre) whose inode budget the per-run session trees
+    would otherwise exhaust.
+
+    The trailing ``RUNNING/<ID>/`` segment is preserved in both cases, so
+    every downstream consumer is unaffected — ``setup_configs`` still
+    strips ``RUNNING/<ID>/`` to derive ``SDIR_OUT``, ``running2finished``
+    still moves the run to a ``FINISHED_*`` sibling, and archiving still
+    finds the same tree. Only the parent of ``_out`` changes. ``<ID>`` is
+    unique per run (timestamp to the second + a random suffix), so
+    concurrent array tasks never collide even when they share the
+    redirected base.
+    """
+    stem = _os.path.splitext(caller_file)[0]
+    out_base = _os.environ.get(_OUT_DIR_ENV)
+    if out_base:
+        script_stem = _os.path.basename(stem)
+        return clean_path(
+            _os.path.join(out_base, f"{script_stem}_out", "RUNNING", ID) + "/"
+        )
+    return clean_path(stem + f"_out/RUNNING/{ID}/")
+
+
 def start(
     sys=None,
     plt=None,
@@ -164,6 +210,15 @@ def start(
     verbose: bool = True,
 ) -> Tuple[DotDict, Any, Any, Any, Optional[Dict[str, Any]], Any]:
     """Initialize experiment session with reproducibility settings.
+
+    .. note::
+       **INTERNAL / advanced.** This is the low-level lifecycle the
+       ``@scitex_session.session`` decorator orchestrates — prefer the
+       decorator. Note the signature is ``start(sys, plt, ...)``; it is
+       *not* a decorator (``@scitex_session.start`` would bind your
+       function to the ``sys`` parameter). Reach it as
+       ``scitex_session._start`` for power-user access; the bare
+       ``scitex_session.start`` name is deprecated.
 
     Parameters
     ----------
@@ -231,8 +286,8 @@ def start(
         else:
             caller_file = _os.path.realpath(caller_file)
 
-        # Define sdir
-        sdir = clean_path(_os.path.splitext(caller_file)[0] + f"_out/RUNNING/{ID}/")
+        # Define sdir (honours $SCITEX_SESSION_OUT_DIR redirect)
+        sdir = _resolve_out_base_dir(caller_file, ID)
 
         # Optional
         if sdir_suffix:
@@ -346,9 +401,13 @@ def _redirect_logging_handlers(sys) -> None:
 
 
 def _start_verification(CONFIG) -> None:
-    """Start verification tracking for this session."""
+    """Start verification tracking for this session.
+
+    Dispatches to registered session-start hooks (e.g. clew lineage) via the
+    acyclic registry; session never imports the subscriber. See _hooks.py.
+    """
     try:
-        from scitex_clew import on_session_start
+        from .._hooks import _fire_session_start_hooks
 
         session_id = CONFIG.get("ID", "unknown")
         file_path = CONFIG.get("FILE")
@@ -359,8 +418,8 @@ def _start_verification(CONFIG) -> None:
         if file_path and file_path.endswith(".ipynb"):
             metadata = {"notebook_path": file_path}
 
-        on_session_start(
-            session_id=session_id, script_path=file_path, metadata=metadata
+        _fire_session_start_hooks(
+            session_id, script_path=file_path, metadata=metadata
         )
     except Exception:
         pass

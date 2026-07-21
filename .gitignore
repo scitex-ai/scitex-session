@@ -8,6 +8,8 @@ dist/
 .pytest_cache/
 .ruff_cache/
 .coverage
+.coverage.*
+coverage.xml
 htmlcov/
 .tox/
 .mypy_cache/
@@ -18,7 +20,11 @@ docs/sphinx/_build/
 docs/sphinx/api/
 *.swp
 .DS_Store
+.worktrees/
 .scitex/*
 !.scitex/dev/
 .scitex/dev/*
 !.scitex/dev/config.yaml
+
+# Local env overrides (copy of .env.example)
+.env

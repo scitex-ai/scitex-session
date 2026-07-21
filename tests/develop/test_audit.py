@@ -19,6 +19,7 @@ pytestmark = pytest.mark.skipif(
 
 def test_audit_all_for_scitex_session_reports_clean():
     # Arrange
+    pytest.importorskip("scitex_dev")
     from scitex_dev.testing import audit_all_for_package
 
     # Act

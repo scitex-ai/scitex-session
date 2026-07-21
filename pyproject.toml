@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scitex-session"
-version = "0.2.4"
+version = "0.3.1"
 description = "@session decorator + lifecycle (auto-CLI, output dir tree, RandomStateManager) — standalone module from the SciTeX ecosystem"
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -64,7 +64,9 @@ docs = [
     "sphinx-autodoc-typehints>=1.25",
 ]
 all = [
-    "scitex-session[dev,docs,mcp]",
+    "scitex-session[mcp]",
+    "scitex-session[dev]",
+    "scitex-session[docs]",
 ]
 
 [project.scripts]

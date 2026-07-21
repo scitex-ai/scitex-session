@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Timestamp: "2026-07-07"
-# File: tests/scitex_session/_lifecycle/test_matplotlib_lazy.py
+# File: tests/scitex_session/_lifecycle/test__matplotlib.py
 """Regression: importing the session lifecycle must NOT import matplotlib.pyplot.
 
 ``scitex_session._mcp_server`` imports ``_lifecycle`` -> ``_start`` ->

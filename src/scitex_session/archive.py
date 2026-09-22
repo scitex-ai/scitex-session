@@ -203,7 +203,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             use_fd=args.use_fd,
         )
         mode = "dry-run" if args.dry_run else "executed"
-        print(_format_summary(f"compress ({mode})", summary))
+        sys.stdout.write(_format_summary(f"compress ({mode})", summary) + "\n")
         return 0
 
     if args.cmd == "extract":
@@ -218,7 +218,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             track_bytes=args.track_bytes,
         )
         mode = "dry-run" if args.dry_run else "executed"
-        print(_format_summary(f"extract ({mode})", summary))
+        sys.stdout.write(_format_summary(f"extract ({mode})", summary) + "\n")
         return 0
 
     parser.error(f"unknown command: {args.cmd}")

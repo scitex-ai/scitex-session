@@ -14,15 +14,16 @@ from __future__ import annotations
 import argparse
 import inspect
 import sys as sys_module
-from logging import getLogger
 from typing import Any, Callable
+
+import scitex_logging as slogging
 
 from .. import INJECTED
 from .._lifecycle import close, start
 from ._cli import _create_parser
 
 # Internal logger for the decorator itself.
-_decorator_logger = getLogger(__name__)
+_decorator_logger = slogging.getLogger(__name__)
 
 
 def _run_with_session(
@@ -77,7 +78,7 @@ def _run_with_session(
     )
 
     # Logger for the user's script.
-    script_logger = getLogger(func.__module__)
+    script_logger = slogging.getLogger(func.__module__)
 
     # Inject session variables into the wrapped function's globals.
     func_globals = func.__globals__
@@ -174,7 +175,7 @@ def _run_with_session(
             try:
                 _decorator_logger.error(f"Session cleanup error: {e}")
             except Exception:
-                print(f"Session cleanup error: {e}")
+                _decorator_logger.error("Session cleanup error: %s", e)
 
         # Final matplotlib cleanup (belt and suspenders).
         try:

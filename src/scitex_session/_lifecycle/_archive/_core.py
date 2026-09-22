@@ -5,14 +5,15 @@
 
 from __future__ import annotations
 
-import logging
 import os
 import re
+import time
 from pathlib import Path
 from typing import Iterable, Optional
-import time
 
-logger = logging.getLogger(__name__)
+import scitex_logging as slogging
+
+log = slogging.getLogger(__name__)
 
 # A scitex-session session dir name looks like:
 #   2025Y-11M-12D-09h57m48s_NLRB
@@ -142,8 +143,8 @@ def iter_session_candidates(
             # Local import to avoid a hard dep on the speedup module
             # during collection / cyclic-import edge cases.
             from ._speedup import (
-                FdNotAvailableError,
                 HAS_FD,
+                FdNotAvailableError,
                 iter_session_candidates_fd,
             )
 
@@ -157,12 +158,12 @@ def iter_session_candidates(
                 except FdNotAvailableError:
                     pass
                 except Exception as e:  # noqa: BLE001
-                    logger.warning(
+                    log.warning(
                         "fd fast-path failed (%s); falling back to Python iterdir+stat.",
                         e,
                     )
         except Exception as e:  # noqa: BLE001
-            logger.debug("_speedup import failed: %s; using Python path.", e)
+            log.debug("_speedup import failed: %s; using Python path.", e)
 
     yield from iter_session_candidates_python(root, older_than_days, pattern)
 

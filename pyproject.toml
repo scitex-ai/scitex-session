@@ -90,6 +90,10 @@ scitex-session = "scitex_session"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["--disable-warnings"]
+markers = [
+    "smoke: fast CLI happy-path tests (<60s, runs on every PR)",
+    "e2e: end-to-end workflows against real subsystems (runs on every PR)",
+]
 # Test the in-tree source so a worktree/checkout always exercises its own
 # code, taking precedence over any stale editable-install `.pth` that may
 # point at a different checkout sharing this venv.

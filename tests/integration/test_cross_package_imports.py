@@ -40,7 +40,8 @@ CROSS_PACKAGE_IMPORTS = [
 @pytest.mark.parametrize("module_name", CROSS_PACKAGE_IMPORTS)
 def test_cross_package_module_import_returns_module_object(module_name):
     # Arrange
-    pytest.importorskip(module_name)
+    root = module_name.split(".")[0]
+    pytest.importorskip(root)
     # Act
     mod = importlib.import_module(module_name)
     # Assert

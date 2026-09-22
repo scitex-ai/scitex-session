@@ -9,9 +9,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
 
-from logging import getLogger
+import scitex_logging as slogging
 
-logger = getLogger(__name__)
+log = slogging.getLogger(__name__)
 
 
 def setup_configs(

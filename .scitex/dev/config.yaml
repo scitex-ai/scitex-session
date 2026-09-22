@@ -5,3 +5,57 @@ audit:
   root-whitelist:
     files:
       - codecov.yml
+
+  # PS-231 (workflow-duplication) — FOUR reasoned exemptions, one per file
+  # (2026-09-22). `line: 0` is mandatory: the rule queries its site key as
+  # (path, 0) because a duplicated workflow is a whole FILE, not a line.
+  # A fifth site, import-smoke-on-ubuntu-py3-12.yml, was FIXED rather than
+  # exempted (converted to a thin caller of the org reusable in this PR).
+  exemptions:
+    PS-231:
+      # ---------------------------------------------------------------
+      # 1. pytest-matrix: BLOCKER 1 (required status contexts), measured
+      # per protected branch via
+      # `gh api repos/scitex-ai/scitex-session/branches/{develop,main}/protection`:
+      # develop requires the LEAF-form contexts
+      # `pytest-matrix-on-ubuntu-py3.11/12/13`, while main requires the
+      # CALLER-form contexts `pytest-matrix / pytest-matrix-on-ubuntu-py3.11`
+      # (etc.). Converting the leaf to a caller renames its published
+      # context, so EITHER branch's gate strands: no single workflow shape
+      # satisfies both protections, and this run cannot edit branch
+      # protection. Per the rule's own BLOCKER 1 instruction, take the
+      # exemption until the develop/main required contexts are reconciled
+      # (with a protection edit landing together with the conversion).
+      - path: .github/workflows/pytest-matrix-on-ubuntu-py3-11-3-12-3-13.yml
+        line: 0
+        reason: "BLOCKER 1: develop requires leaf-form pytest-matrix contexts while main requires caller-form; converting strands one branch's gate until protections are reconciled"
+      # ---------------------------------------------------------------
+      # 2. rtd-sphinx-build: BLOCKER 2 (leaf vendors build output). The
+      # workflow commits the built docs back into the package tree
+      # (`src/scitex_session/_sphinx_html/`, step "Refresh
+      # src/scitex_session/_sphinx_html/"), and hatch packages `src/`
+      # wholesale so that bundle SHIPS INSIDE THE WHEEL. The org reusable
+      # is BUILD-ONLY and cannot replace the vendor-back steps.
+      - path: .github/workflows/rtd-sphinx-build-on-ubuntu-latest.yml
+        line: 0
+        reason: "BLOCKER 2: workflow vendors built Sphinx HTML back into src/scitex_session/_sphinx_html (ships in wheel); org reusable is build-only"
+      # ---------------------------------------------------------------
+      # 3. cla: the leaf carries package-specific CLA copy (custom
+      # signed/not-signed comments, signatures/cla.json path,
+      # scitex-session CLA.md URL) that the org reusable's inputs
+      # (owner_allowlist only) cannot express. Converting would silently
+      # drop the custom contributor-facing text. Revisit if the reusable
+      # gains signature-path/message inputs.
+      - path: .github/workflows/cla.yml
+        line: 0
+        reason: "leaf CLA workflow carries package-specific signatures path, doc URL and custom comments the org reusable cannot express; conversion would silently drop them"
+      # ---------------------------------------------------------------
+      # 4. auto-merge-to-develop: the leaf implements a custom merge policy
+      # (ignores advisory codecov/readthedocs checks, --admin merge,
+      # per-PR base/draft gating) whose equivalence with the org reusable
+      # is unverified. It acts on a protected branch, so a blind
+      # conversion risks changing auto-merge behaviour. Needs operator
+      # review against the org callee before converting.
+      - path: .github/workflows/auto-merge-to-develop.yaml
+        line: 0
+        reason: "custom merge policy (advisory-check ignore list, --admin merge) with unverified equivalence to org reusable; acts on protected branch, needs operator review"

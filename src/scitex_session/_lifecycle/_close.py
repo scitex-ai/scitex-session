@@ -10,8 +10,9 @@ import os as _os
 import shutil
 import time
 from glob import glob as _glob
-from logging import getLogger
 from pathlib import Path
+
+import scitex_logging as slogging
 
 
 def scitex_utils_notify(*args, **kwargs):
@@ -30,7 +31,7 @@ from .._manager import get_global_session_manager
 from ._config import save_configs
 from ._utils import args_to_str, escape_ansi_from_log_files, process_timestamp
 
-logger = getLogger(__name__)
+log = slogging.getLogger(__name__)
 
 
 def running2finished(
@@ -85,17 +86,17 @@ def running2finished(
         while not _os.path.exists(dest_dir) and time.time() - start_time < max_wait:
             time.sleep(0.1)
         if _os.path.exists(dest_dir):
-            print()
+            log.info("")
             if exit_status == 1:
-                logger.error(
+                log.error(
                     f"Script failed: {dest_dir}",
                 )
             elif exit_status == 0:
-                logger.info(
+                log.info(
                     f"Congratulations! The script completed: {dest_dir}",
                 )
             else:
-                logger.info(
+                log.info(
                     f"Script finished: {dest_dir}",
                 )
 
@@ -111,7 +112,7 @@ def running2finished(
                     pass
 
         else:
-            print(f"Copy operation timed out after {max_wait} seconds")
+            log.error(f"Copy operation timed out after {max_wait} seconds")
 
         CONFIG["SDIR_RUN"] = Path(dest_dir)
 
@@ -129,14 +130,14 @@ def running2finished(
                 )
                 CONFIG["SDIR_RUN"] = Path(archive_path)
             except Exception as e:
-                logger.warning(
+                log.warning(
                     "archive_format=%r failed for %s: %s",
                     archive_format,
                     dest_dir,
                     e,
                 )
     except Exception as e:
-        print(e)
+        log.error("%s", e)
 
     finally:
         return CONFIG
@@ -225,7 +226,7 @@ def close(
                     verbose=verbose,
                 )
             except Exception as e:
-                print(e)
+                log.error("%s", e)
 
         # Close session
         session_manager = get_global_session_manager()
@@ -264,11 +265,11 @@ def _cleanup_matplotlib(verbose: bool) -> None:
         gc.collect()
 
         if verbose:
-            logger.info("Matplotlib cleanup completed")
+            log.info("Matplotlib cleanup completed")
 
     except Exception as e:
         if verbose:
-            logger.warning(f"Could not close matplotlib: {e}")
+            log.warning(f"Could not close matplotlib: {e}")
 
 
 def _close_streams(sys) -> None:

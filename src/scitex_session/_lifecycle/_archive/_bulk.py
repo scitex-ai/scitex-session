@@ -5,9 +5,10 @@
 
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 from typing import Optional, Union
+
+import scitex_logging as slogging
 
 from ._core import (
     dir_size,
@@ -18,7 +19,7 @@ from ._core import (
 )
 from ._single import archive_session_dir, restore_session_archive
 
-logger = logging.getLogger(__name__)
+log = slogging.getLogger(__name__)
 
 
 def archive_existing(
@@ -83,13 +84,13 @@ def archive_existing(
         archive_path = candidate.parent / (candidate.name + suffix)
         if archive_path.exists():
             summary["skipped"] += 1
-            logger.info("Skipping (archive exists): %s", archive_path)
+            log.info("Skipping (archive exists): %s", archive_path)
             continue
 
         summary["candidates"] += 1
         if max_dirs is not None and summary["candidates"] > max_dirs:
             summary["candidates"] -= 1
-            logger.info("Reached max_dirs=%d cap; stopping.", max_dirs)
+            log.info("Reached max_dirs=%d cap; stopping.", max_dirs)
             break
 
         if track_bytes:
@@ -103,13 +104,13 @@ def archive_existing(
 
         if dry_run:
             if track_bytes:
-                logger.info(
+                log.info(
                     "[dry-run] would archive: %s (%d bytes)",
                     candidate,
                     src_bytes,
                 )
             else:
-                logger.info("[dry-run] would archive: %s", candidate)
+                log.info("[dry-run] would archive: %s", candidate)
             continue
 
         try:
@@ -123,7 +124,7 @@ def archive_existing(
                 except OSError:
                     out_bytes = 0
                 summary["bytes_out"] += out_bytes
-                logger.info(
+                log.info(
                     "Archived: %s -> %s (%d -> %d bytes)",
                     candidate,
                     archive_path,
@@ -131,10 +132,10 @@ def archive_existing(
                     out_bytes,
                 )
             else:
-                logger.info("Archived: %s -> %s", candidate, archive_path)
+                log.info("Archived: %s -> %s", candidate, archive_path)
         except Exception as e:
             summary["failed"] += 1
-            logger.warning("Failed to archive %s: %s", candidate, e)
+            log.warning("Failed to archive %s: %s", candidate, e)
 
     return summary
 
@@ -187,23 +188,23 @@ def restore_existing(
                 break
         if not is_session_dir_name(stem):
             summary["skipped"] += 1
-            logger.info("Skipping (non-session-name): %s", arc)
+            log.info("Skipping (non-session-name): %s", arc)
             continue
 
         dest = dest_root_path / stem
         if dest.exists():
             summary["skipped"] += 1
-            logger.info("Skipping (dest exists): %s", dest)
+            log.info("Skipping (dest exists): %s", dest)
             continue
 
         summary["candidates"] += 1
         if max_files is not None and summary["candidates"] > max_files:
             summary["candidates"] -= 1
-            logger.info("Reached max_files=%d cap; stopping.", max_files)
+            log.info("Reached max_files=%d cap; stopping.", max_files)
             break
 
         if dry_run:
-            logger.info("[dry-run] would restore: %s -> %s", arc, dest)
+            log.info("[dry-run] would restore: %s -> %s", arc, dest)
             continue
 
         try:
@@ -211,10 +212,10 @@ def restore_existing(
                 arc, dest_dir=dest, remove_archive=remove_archive
             )
             summary["restored"] += 1
-            logger.info("Restored: %s -> %s", arc, dest)
+            log.info("Restored: %s -> %s", arc, dest)
         except Exception as e:
             summary["failed"] += 1
-            logger.warning("Failed to restore %s: %s", arc, e)
+            log.warning("Failed to restore %s: %s", arc, e)
 
     return summary
 

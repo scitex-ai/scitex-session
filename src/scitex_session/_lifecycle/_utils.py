@@ -8,14 +8,14 @@ from __future__ import annotations
 import os as _os
 import re
 from datetime import datetime
-from logging import getLogger
 from time import sleep
 from typing import Any, Dict, Tuple
 
+import scitex_logging as slogging
 from scitex_repro import gen_ID
 from scitex_str import printc as _printc
 
-logger = getLogger(__name__)
+log = slogging.getLogger(__name__)
 
 
 def get_scitex_version() -> str:
@@ -25,7 +25,7 @@ def get_scitex_version() -> str:
 
         return scitex.__version__
     except Exception as e:
-        print(e)
+        log.error("%s", e)
         return "(not found)"
 
 
@@ -47,7 +47,7 @@ def get_debug_mode() -> bool:
             IS_DEBUG = False
 
     except Exception as e:
-        print(e)
+        log.error("%s", e)
         IS_DEBUG = False
     return IS_DEBUG
 
@@ -101,7 +101,7 @@ def clear_python_log_dir(log_dir: str) -> None:
         if _os.path.exists(log_dir):
             _os.system(f"rm -rf {log_dir}")
     except Exception as e:
-        print(f"Failed to clear directory {log_dir}: {e}")
+        log.error("Failed to clear directory %s: %s", log_dir, e)
 
 
 def print_header(
@@ -149,7 +149,7 @@ def print_header(
         from pprint import pformat
 
         config_str = pformat(configs.to_dict())
-        logger.info(f"\n{'-' * 40}\n\n{config_str}\n\n{'-' * 40}\n")
+        log.info(f"\n{'-' * 40}\n\n{config_str}\n\n{'-' * 40}\n")
     sleep_fn(1)
 
 
@@ -170,14 +170,14 @@ def process_timestamp(CONFIG, verbose=True):
             CONFIG["END_DATETIME"] - CONFIG["START_DATETIME"]
         )
         if verbose:
-            logger.info(
+            log.info(
                 f"\nSTART TIME: {CONFIG['START_DATETIME']}\n"
                 f"END TIME: {CONFIG['END_DATETIME']}\n"
                 f"RUN DURATION: {CONFIG['RUN_DURATION']}\n"
             )
 
     except Exception as e:
-        print(e)
+        log.error("%s", e)
 
     return CONFIG
 

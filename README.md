@@ -14,22 +14,78 @@
 
 <!-- scitex-badges:start -->
 <p align="center">
-  <a href="https://pypi.org/project/scitex-session/"><img src="https://img.shields.io/pypi/v/scitex-session.svg" alt="PyPI"></a>
-  <a href="https://pypi.org/project/scitex-session/"><img src="https://img.shields.io/pypi/pyversions/scitex-session.svg" alt="Python"></a>
-  <a href="https://github.com/ywatanabe1989/scitex-session/actions/workflows/test.yml"><img src="https://github.com/ywatanabe1989/scitex-session/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
-  <a href="https://codecov.io/gh/ywatanabe1989/scitex-session"><img src="https://codecov.io/gh/ywatanabe1989/scitex-session/graph/badge.svg" alt="Coverage"></a>
-  <a href="https://scitex-session.readthedocs.io/en/latest/"><img src="https://readthedocs.org/projects/scitex-session/badge/?version=latest" alt="Docs"></a>
-  <a href="https://www.gnu.org/licenses/agpl-3.0"><img src="https://img.shields.io/badge/license-AGPL_v3-blue.svg" alt="License: AGPL v3"></a>
+  <a href="https://pypi.org/project/scitex-session/"><img src="https://img.shields.io/pypi/v/scitex-session?label=pypi" alt="pypi"></a>
+  <a href="https://pypi.org/project/scitex-session/"><img src="https://img.shields.io/pypi/pyversions/scitex-session?label=python" alt="python"></a>
+  <a href="https://scitex-session.readthedocs.io/en/latest/"><img src="https://img.shields.io/readthedocs/scitex-session?label=docs" alt="docs"></a>
+</p>
+<p align="center">
+  <a href="https://github.com/scitex-ai/scitex-session/actions/workflows/pytest-matrix-on-ubuntu-py3-11-3-12-3-13.yml"><img src="https://img.shields.io/github/actions/workflow/status/scitex-ai/scitex-session/pytest-matrix-on-ubuntu-py3-11-3-12-3-13.yml?branch=develop&label=tests" alt="tests"></a>
+  <a href="https://github.com/scitex-ai/scitex-session/actions/workflows/import-smoke-on-ubuntu-py3-12.yml"><img src="https://img.shields.io/github/actions/workflow/status/scitex-ai/scitex-session/import-smoke-on-ubuntu-py3-12.yml?branch=develop&label=install-check" alt="install-check"></a>
+  <a href="https://github.com/scitex-ai/scitex-session/actions/workflows/scitex-session-quality-audit-on-ubuntu-latest.yml"><img src="https://img.shields.io/github/actions/workflow/status/scitex-ai/scitex-session/scitex-session-quality-audit-on-ubuntu-latest.yml?branch=develop&label=quality" alt="quality"></a>
+  <a href="https://codecov.io/gh/ywatanabe1989/scitex-session"><img src="https://img.shields.io/codecov/c/github/ywatanabe1989/scitex-session/develop?label=cov" alt="cov"></a>
 </p>
 <!-- scitex-badges:end -->
 
 ---
 
+## Quick Start
+
+```python
+import scitex_session as sess
+
+@sess.session
+def main(
+    param1="default",
+    CONFIG=sess.INJECTED,
+    plt=sess.INJECTED,
+    logger=sess.INJECTED,
+    rng=sess.INJECTED,
+):
+    """Docstring becomes --help."""
+    logger.info("hi")
+    return 0
+```
+
+## Demo
+
+```mermaid
+sequenceDiagram
+    participant User as $ python script.py --param1 X
+    participant Dec as @sess.session
+    participant Main as main()
+    participant FS as Filesystem
+    User->>Dec: invoke
+    Dec->>Dec: parse args, fix RNG, build CONFIG
+    Dec->>FS: mkdir script_out/RUNNING_<ID>/
+    Dec->>Main: call(CONFIG, logger, rng, plt)
+    Main->>FS: stx.io.save(...)
+    Main-->>Dec: return 0
+    Dec->>FS: rename → FINISHED_SUCCESS/<ID>/
+    Dec->>FS: write CONFIGS/CONFIG.yaml + logs/
+```
+
+<p align="center"><sub><b>Figure 1.</b> Session lifecycle: the decorator parses args, runs <code>main()</code> under a RUNNING directory, then promotes it to FINISHED_SUCCESS with configs and logs.</sub></p>
+
 ## Installation
 
 ```bash
-pip install scitex-session
+uv pip install "scitex-session[all]"
 ```
+
+Requires Python ≥ 3.9.
+
+<details>
+<summary><b>Per-extra installs</b></summary>
+
+<br>
+
+| Extra | Pulls in |
+|---|---|
+| `mcp` | stdio MCP server (`fastmcp`) |
+| `dev` | tests + lint + dev helpers (`pytest`, `ruff`, `scitex-dev`, `figrecipe`, …) |
+| `docs` | Sphinx docs build (`sphinx`, `myst-parser`, …) |
+
+</details>
 
 ## Architecture
 
@@ -54,6 +110,8 @@ flowchart LR
     rundir --> logs[("logs/{stdout,stderr}.log")]
     rundir --> outputs[("results.csv, plots, ...")]
 ```
+
+<p align="center"><sub><b>Figure 2.</b> Decorator data flow: signature-derived CLI, dependency injection, and the output directory tree.</sub></p>
 
 ## 1 Interfaces
 
@@ -82,42 +140,6 @@ mgr = sess.SessionManager()
 
 </details>
 
-## Demo
-
-```mermaid
-sequenceDiagram
-    participant User as $ python script.py --param1 X
-    participant Dec as @sess.session
-    participant Main as main()
-    participant FS as Filesystem
-    User->>Dec: invoke
-    Dec->>Dec: parse args, fix RNG, build CONFIG
-    Dec->>FS: mkdir script_out/RUNNING_<ID>/
-    Dec->>Main: call(CONFIG, logger, rng, plt)
-    Main->>FS: stx.io.save(...)
-    Main-->>Dec: return 0
-    Dec->>FS: rename → FINISHED_SUCCESS/<ID>/
-    Dec->>FS: write CONFIGS/CONFIG.yaml + logs/
-```
-
-## Quick Start
-
-```python
-import scitex_session as sess
-
-@sess.session
-def main(
-    param1="default",
-    CONFIG=sess.INJECTED,
-    plt=sess.INJECTED,
-    logger=sess.INJECTED,
-    rng=sess.INJECTED,
-):
-    """Docstring becomes --help."""
-    logger.info("hi")
-    return 0
-```
-
 ## Status
 
 Standalone fork of `scitex.session`. Deps: matplotlib + scitex-dict /
@@ -127,7 +149,7 @@ Decoupling notes:
 - `scitex.dict.DotDict` → `scitex_dict.DotDict`
 - `scitex.repro.RandomStateManager / gen_ID` → `scitex_repro.*`
 - `scitex.str.clean_path / printc` → `scitex_str.*`
-- `scitex.logging.getLogger` → stdlib `logging.getLogger`
+- `scitex.logging.getLogger` → `scitex_logging.getLogger` (PS-220)
 - `scitex.plt.utils._configure_mpl` → optional via `try/except` with no-op
   fallback (matplotlib uses defaults if scitex umbrella isn't installed).
 - `scitex.utils._notify` → optional via `try/except` (silent no-op fallback).

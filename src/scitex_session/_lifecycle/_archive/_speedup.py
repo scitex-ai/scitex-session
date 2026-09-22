@@ -33,15 +33,16 @@ content-search helpers but is not exercised here.
 """
 from __future__ import annotations
 
-import logging
 import shutil
 import subprocess
 from pathlib import Path
 from typing import Iterable, List, Optional
 
+import scitex_logging as slogging
+
 from ._core import is_session_dir_name
 
-logger = logging.getLogger(__name__)
+log = slogging.getLogger(__name__)
 
 
 def _detect(*names: str) -> Optional[str]:

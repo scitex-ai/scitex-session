@@ -8,12 +8,12 @@ from __future__ import annotations
 import os
 import platform
 import sys
-from logging import getLogger
 from typing import Any, Dict, Optional, Tuple
 
 import matplotlib
+import scitex_logging as slogging
 
-logger = getLogger(__name__)
+log = slogging.getLogger(__name__)
 
 # Detect headless/WSL environments
 is_headless = False
@@ -35,7 +35,12 @@ if is_headless:
     matplotlib.use("Agg")
 
 
-from scitex_dev import try_import_optional
+# scitex-dev is a dev-only extra: guard the import so the runtime works
+# without it (call sites below already handle a None resolver).
+try:
+    from scitex_dev import try_import_optional
+except ImportError:  # pragma: no cover - dev-only extra absent at runtime
+    try_import_optional = None
 
 
 def _noop_configure_mpl(plt, **kwargs):
@@ -64,9 +69,12 @@ def _resolve_configure_mpl():
     """
     global _configure_mpl_cache
     if _configure_mpl_cache is None:
-        resolved = try_import_optional(
-            "figrecipe.utils._configure_mpl", "configure_mpl"
-        )
+        if try_import_optional is None:
+            resolved = None
+        else:
+            resolved = try_import_optional(
+                "figrecipe.utils._configure_mpl", "configure_mpl"
+            )
         _configure_mpl_cache = resolved if resolved is not None else _noop_configure_mpl
     return _configure_mpl_cache
 
@@ -111,7 +119,7 @@ def setup_matplotlib(
         # The 'agg' parameter is kept for backwards compatibility but has
         # no effect since backend must be set before pyplot import.
         if agg and not is_headless:
-            logger.warning(
+            log.warning(
                 "agg=True specified but backend was already set to Agg "
                 "during module initialization for headless environment"
             )
@@ -121,7 +129,10 @@ def setup_matplotlib(
         # dep — not a hard requirement of scitex-session — so fall back to
         # the plain pyplot module when it isn't installed (mirrors the
         # figrecipe.configure_mpl fallback above).
-        stx_plt = try_import_optional("scitex_plt")
+        if try_import_optional is None:
+            stx_plt = None
+        else:
+            stx_plt = try_import_optional("scitex_plt")
         if stx_plt is None:
             return plt, COLORS
         return stx_plt, COLORS

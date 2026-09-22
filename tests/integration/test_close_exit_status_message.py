@@ -2,8 +2,8 @@
 
 Before the fix, `_close(exit_status=1)` still printed "SUCC: Congratulations!"
 even though the directory was correctly named FINISHED_ERROR. The log line
-now branches: error → logger.error, success/none → logger.info. (We don't
-use `logger.success` anymore — stdlib `logging.Logger` has no such method
+now branches: error → log.error, success/none → log.info. (We don't
+use `log.success` anymore — `SciTeXLogger` has no such method
 and the previous call crashed inside running2finished's try/except,
 swallowing the SDIR_RUN update.)
 """
@@ -21,7 +21,7 @@ class TestCloseExitStatusMessage:
         # Act
         src = inspect.getsource(_close)
         # Assert
-        assert "logger.error" in src
+        assert "log.error" in src
 
     def test_close_source_includes_logger_info_call(self):
         # Arrange
@@ -30,7 +30,7 @@ class TestCloseExitStatusMessage:
         # Act
         src = inspect.getsource(_close)
         # Assert
-        assert "logger.info" in src
+        assert "log.info" in src
 
     def test_close_source_branches_on_exit_status_one(self):
         # Arrange
@@ -73,7 +73,7 @@ class TestCloseExitStatusMessage:
         from scitex_session._lifecycle import _close
 
         src = inspect.getsource(_close)
-        err_idx = src.find("logger.error")
+        err_idx = src.find("log.error")
         succ_idx = src.find("Congratulations")
         # Act
         err_first = 0 <= err_idx < succ_idx

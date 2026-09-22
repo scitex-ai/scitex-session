@@ -8,10 +8,10 @@ from __future__ import annotations
 import inspect
 import logging
 import os as _os
-from logging import getLogger
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple, Union
 
+import scitex_logging as slogging
 from scitex_dict import DotDict
 from scitex_repro import RandomStateManager
 from scitex_str import clean_path
@@ -27,14 +27,20 @@ from ._utils import (
     simplify_relative_path,
 )
 
-logger = getLogger(__name__)
+log = slogging.getLogger(__name__)
 
-# For development code flow analysis
-from scitex_dev import try_import_optional
+# For development code flow analysis (scitex-dev is a dev-only extra).
+try:
+    from scitex_dev import try_import_optional
+except ImportError:  # pragma: no cover - dev-only extra absent at runtime
+    try_import_optional = None
 
-analyze_code_flow = try_import_optional(
-    "scitex_dev._analyze_code_flow", "analyze_code_flow"
-)
+if try_import_optional is None:
+    analyze_code_flow = None
+else:
+    analyze_code_flow = try_import_optional(
+        "scitex_dev._analyze_code_flow", "analyze_code_flow"
+    )
 if analyze_code_flow is None:
 
     def analyze_code_flow(file):
@@ -320,7 +326,7 @@ def start(
     # Initialize RandomStateManager
     rng = RandomStateManager(seed=seed, verbose=verbose)
     if verbose:
-        logger.info(f"Initialized RandomStateManager with seed {seed}")
+        log.info(f"Initialized RandomStateManager with seed {seed}")
 
     # Matplotlib configurations
     plt, COLORS = setup_matplotlib(
@@ -371,7 +377,7 @@ def _redirect_logging_handlers(sys) -> None:
     # Update all existing StreamHandler instances
     for logger_name in list(logging.Logger.manager.loggerDict.keys()):
         try:
-            lgr = logging.getLogger(logger_name)
+            lgr = slogging.getLogger(logger_name)
             for handler in lgr.handlers:
                 if isinstance(handler, logging.StreamHandler):
                     if not hasattr(handler, "stream"):
@@ -387,7 +393,7 @@ def _redirect_logging_handlers(sys) -> None:
 
     # Also update the root logger handlers
     try:
-        root_logger = logging.getLogger()
+        root_logger = slogging.getLogger()
         for handler in root_logger.handlers:
             if isinstance(handler, logging.StreamHandler):
                 if not hasattr(handler, "stream"):

@@ -5,12 +5,13 @@
 
 from __future__ import annotations
 
-import logging
 import os
 import shutil
 import tarfile
 from pathlib import Path
 from typing import Optional, Union
+
+import scitex_logging as slogging
 
 from ._core import (
     MIN_ARCHIVE_BYTES,
@@ -20,7 +21,7 @@ from ._core import (
     format_to_suffix,
 )
 
-logger = logging.getLogger(__name__)
+log = slogging.getLogger(__name__)
 
 
 def archive_session_dir(
@@ -59,7 +60,7 @@ def archive_session_dir(
 
     # Clean any stale tmp left behind by an earlier crash.
     if tmp_path.exists():
-        logger.warning("Removing stale tmp archive: %s", tmp_path)
+        log.warning("Removing stale tmp archive: %s", tmp_path)
         try:
             tmp_path.unlink()
         except OSError as e:
@@ -113,7 +114,7 @@ def archive_session_dir(
         try:
             shutil.rmtree(src)
         except OSError as e:
-            logger.warning(
+            log.warning(
                 "Archive ok but could not remove source %s: %s", src, e
             )
 
@@ -159,7 +160,7 @@ def restore_session_archive(
 
     tmp_dest = dest.parent / (dest.name + ".restoring")
     if tmp_dest.exists():
-        logger.warning("Removing stale tmp restore dir: %s", tmp_dest)
+        log.warning("Removing stale tmp restore dir: %s", tmp_dest)
         shutil.rmtree(tmp_dest)
 
     tmp_dest.mkdir(parents=True, exist_ok=False)
@@ -190,7 +191,7 @@ def restore_session_archive(
         try:
             arc.unlink()
         except OSError as e:
-            logger.warning(
+            log.warning(
                 "Restore ok but could not remove archive %s: %s", arc, e
             )
 

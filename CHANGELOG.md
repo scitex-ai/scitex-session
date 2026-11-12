@@ -7,6 +7,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- Render the session decorator reference without an unsupported nested section heading.
+
 ### Added
 
 - **`SCITEX_SESSION_OUT_DIR` — redirect the session `_out` base off the

@@ -114,8 +114,7 @@ def session(
       script.
     - Do NOT nest session-decorated function calls without arguments.
 
-    Injected Global Variables
-    -------------------------
+    **Injected global variables**
     When called without arguments (CLI mode), the decorator injects
     these into the wrapped function's module globals:
 

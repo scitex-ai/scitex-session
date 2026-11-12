@@ -83,7 +83,12 @@ Documentation = "https://scitex-session.readthedocs.io"
 where = ["src"]
 
 [tool.setuptools.package-data]
-scitex_session = ["_skills/**/*.md"]
+scitex_session = [
+    "_skills/**/*.md",
+    "_sphinx_html/*",
+    "_sphinx_html/**/*",
+    "_sphinx_html/.nojekyll",
+]
 
 [project.entry-points."scitex_dev.skills"]
 scitex-session = "scitex_session"

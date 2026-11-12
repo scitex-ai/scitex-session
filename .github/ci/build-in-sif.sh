@@ -69,6 +69,7 @@ from pathlib import Path
 import sys
 import tomllib
 import zipfile
+import tarfile
 from scitex_dev._release.entrypoint_imports import audit_wheel_entry_point_imports
 assert Version(version("scitex-dev")) >= Version("0.62.1")
 expected = tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"]
@@ -76,6 +77,29 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
     name = next(name for name in archive.namelist() if name.endswith(".dist-info/METADATA"))
     metadata = BytesParser().parsebytes(archive.read(name))
 assert metadata["Name"] == "scitex-session" and metadata["Version"] == expected
+# The documentation provider consumes these installed files, not a CI-only tree.
+bundle = Path("src/scitex_session/_sphinx_html")
+source_docs = {path.relative_to(bundle).as_posix(): path.read_bytes()
+               for path in bundle.rglob("*") if path.is_file()}
+assert source_docs and "api.html" in source_docs and "index.html" in source_docs
+assert not any(".doctrees" in Path(name).parts for name in source_docs), "Sphinx build caches must not ship"
+with zipfile.ZipFile(sys.argv[1]) as archive:
+    for name, payload in source_docs.items():
+        key = "scitex_session/_sphinx_html/" + name
+        assert key in archive.namelist(), "wheel missing documentation: " + name
+        assert archive.read(key) == payload, "wheel documentation differs: " + name
+sdists = list(Path("dist").glob("*.tar.gz"))
+assert len(sdists) == 1, "expected exactly one source distribution"
+with tarfile.open(sdists[0]) as archive:
+    roots = {member.name.split("/")[0] for member in archive.getmembers()}
+    assert len(roots) == 1
+    root = next(iter(roots))
+    for name, payload in source_docs.items():
+        key = root + "/src/scitex_session/_sphinx_html/" + name
+        member = archive.getmember(key)
+        assert member.isfile(), "sdist documentation is not a regular file: " + name
+        assert archive.extractfile(member).read() == payload, "sdist documentation differs: " + name
+print(f"scitex-session: {len(source_docs)} documentation files match wheel and sdist")
 if sys.argv[2]:
     assert sys.argv[2] == "v" + expected, "release tag/source version mismatch"
 report = audit_wheel_entry_point_imports(Path(sys.argv[1]), "scitex-session")

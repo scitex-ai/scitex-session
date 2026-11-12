@@ -3,6 +3,9 @@ import hashlib
 import os
 from pathlib import Path
 import subprocess
+import sys
+import tomllib
+import zipfile
 
 import pytest
 import yaml
@@ -110,3 +113,23 @@ def test_release_uses_shared_native_tests_and_source_bound_publication():
         'publisher_checkout': '${{ needs.build.outputs.source_sha }}',
         'main_guard': True, 'tested_source_guard': True, 'obsolete_test_script': False,
     }
+
+
+def test_build_gate_refuses_wheel_missing_required_documentation(tmp_path):
+    # Arrange
+    recipe = (ROOT / '.github/ci/build-in-sif.sh').read_text()
+    gate = recipe.split("<<'PYGATE'\n", 1)[1].split('\nPYGATE', 1)[0]
+    version = tomllib.loads((ROOT / 'pyproject.toml').read_text())['project']['version']
+    wheel = tmp_path / f'scitex_session-{version}-py3-none-any.whl'
+    with zipfile.ZipFile(wheel, 'w') as archive:
+        archive.writestr(
+            f'scitex_session-{version}.dist-info/METADATA',
+            f'Metadata-Version: 2.1\nName: scitex-session\nVersion: {version}\n',
+        )
+    # Act
+    result = subprocess.run(
+        [sys.executable, '-c', gate, str(wheel), ''],
+        cwd=ROOT, text=True, capture_output=True, timeout=30,
+    )
+    # Assert
+    assert (result.returncode != 0, 'wheel missing documentation' in result.stderr) == (True, True)

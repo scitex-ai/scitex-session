@@ -7,6 +7,10 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- Include the reviewed HTML reference in wheel and source distributions, and verify every bundled document against its source during release builds.
+
+- Run release validation through the shared full test matrix, verify the CI image, use job-owned portable build scratch, and publish only the exact tested source.
+
 - Defer lifecycle initialization so archive imports and CLI discovery do not load plotting or scientific data libraries.
 
 - Declare the shared development and logging APIs used by the session lifecycle as runtime dependencies.

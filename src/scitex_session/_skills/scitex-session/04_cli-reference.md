@@ -49,9 +49,10 @@ scitex-session-archive compress script_out/FINISHED_SUCCESS \
 | `--max-dirs N`        | `10000`     | Safety cap. `0` disables.                               |
 | `--verbose`           | off         | DEBUG-level logging on stderr.                          |
 
-Prints a one-line summary on stdout:
+Prints a one-line summary on stdout through shared SciTeX logging.
+The payload below omits the logging prefix; diagnostics go to stderr:
 
-```
+```text
 compress (executed): scanned=42, candidates=12, archived=12, skipped=0, failed=0, bytes_in=4194304, bytes_out=812345
 ```
 

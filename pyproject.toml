@@ -27,7 +27,9 @@ dependencies = [
     # breaking every figure-saving session (clew P4_figure regression).
     "scitex-plt>=0.24.0",
     "scitex-dict>=0.1.0",
-    "scitex-logging>=0.1.0",
+    "scitex-logging>=0.2.5",
+    # Lifecycle modules import the shared optional-import helper at runtime.
+    "scitex-dev>=0.62.28",
     "scitex-repro>=0.1.0",
     "scitex-str>=0.1.0",
     "scitex-io>=0.2.0",
@@ -45,7 +47,6 @@ dev = [
     "pytest",
     "pytest-cov",
     "ruff",
-    "scitex-dev>=0.11.7",
     # tests/scitex_session/test__{manager,decorator,template}.py +
     # tests/scitex_session/_lifecycle/test__utils.py importorskip these
     "h5py",

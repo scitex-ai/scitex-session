@@ -5,14 +5,14 @@
 
 from __future__ import annotations
 
-import logging
+import scitex_logging as slogging
 import os
 import re
 from pathlib import Path
 from typing import Iterable, Optional
 import time
 
-logger = logging.getLogger(__name__)
+logger = slogging.getLogger(__name__)
 
 # A scitex-session session dir name looks like:
 #   2025Y-11M-12D-09h57m48s_NLRB

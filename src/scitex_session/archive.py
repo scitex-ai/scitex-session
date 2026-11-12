@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import scitex_logging as slogging
 import sys
 from typing import Optional, Sequence
 
@@ -173,10 +174,8 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _setup_logging(verbose: bool) -> None:
     level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format="%(levelname)s %(name)s: %(message)s",
-        stream=sys.stderr,
+    slogging.configure(
+        level=level, enable_file=False, capture_prints=False
     )
 
 
@@ -203,7 +202,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             use_fd=args.use_fd,
         )
         mode = "dry-run" if args.dry_run else "executed"
-        print(_format_summary(f"compress ({mode})", summary))
+        slogging.getConsole(__name__).info(_format_summary(f"compress ({mode})", summary))
         return 0
 
     if args.cmd == "extract":
@@ -218,7 +217,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             track_bytes=args.track_bytes,
         )
         mode = "dry-run" if args.dry_run else "executed"
-        print(_format_summary(f"extract ({mode})", summary))
+        slogging.getConsole(__name__).info(_format_summary(f"extract ({mode})", summary))
         return 0
 
     parser.error(f"unknown command: {args.cmd}")

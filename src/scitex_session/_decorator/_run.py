@@ -14,7 +14,7 @@ from __future__ import annotations
 import argparse
 import inspect
 import sys as sys_module
-from logging import getLogger
+from scitex_logging import getLogger, getPlainConsole
 from typing import Any, Callable
 
 from .. import INJECTED
@@ -174,7 +174,9 @@ def _run_with_session(
             try:
                 _decorator_logger.error(f"Session cleanup error: {e}")
             except Exception:
-                print(f"Session cleanup error: {e}")
+                getPlainConsole(__name__).emit(
+                    f"Session cleanup error: {e}", stream=sys_module.stderr
+                )
 
         # Final matplotlib cleanup (belt and suspenders).
         try:

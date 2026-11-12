@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 import platform
 import sys
-from logging import getLogger
+from scitex_logging import getLogger
 from typing import Any, Dict, Optional, Tuple
 
 import matplotlib

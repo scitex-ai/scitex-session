@@ -7,6 +7,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-12
+
 - Include the reviewed HTML reference in wheel and source distributions, and verify every bundled document against its source during release builds.
 
 - Run release validation through the shared full test matrix, verify the CI image, use job-owned portable build scratch, and publish only the exact tested source.

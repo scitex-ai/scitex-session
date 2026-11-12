@@ -3,7 +3,9 @@
 # File: /home/ywatanabe/proj/scitex-code/src/scitex/session/template.py
 
 
-from pprint import pprint
+from pprint import pformat
+
+from scitex_logging import getLogger
 
 from scitex_session import INJECTED, session
 
@@ -19,7 +21,10 @@ def main(
     logger=INJECTED,
 ):
     """Demonstration for scitex.session.session"""
-    pprint(CONFIG)
+    active_logger = (
+        getLogger(__name__) if logger is INJECTED or logger is None else logger
+    )
+    active_logger.info("%s", pformat(CONFIG))
 
 
 if __name__ == "__main__":

@@ -10,7 +10,7 @@ import os as _os
 import shutil
 import time
 from glob import glob as _glob
-from logging import getLogger
+from scitex_logging import getLogger
 from pathlib import Path
 
 
@@ -85,7 +85,6 @@ def running2finished(
         while not _os.path.exists(dest_dir) and time.time() - start_time < max_wait:
             time.sleep(0.1)
         if _os.path.exists(dest_dir):
-            print()
             if exit_status == 1:
                 logger.error(
                     f"Script failed: {dest_dir}",
@@ -111,7 +110,7 @@ def running2finished(
                     pass
 
         else:
-            print(f"Copy operation timed out after {max_wait} seconds")
+            logger.error(f"Copy operation timed out after {max_wait} seconds")
 
         CONFIG["SDIR_RUN"] = Path(dest_dir)
 
@@ -136,7 +135,7 @@ def running2finished(
                     e,
                 )
     except Exception as e:
-        print(e)
+        logger.error("%s", e)
 
     finally:
         return CONFIG
@@ -225,7 +224,7 @@ def close(
                     verbose=verbose,
                 )
             except Exception as e:
-                print(e)
+                logger.error("%s", e)
 
         # Close session
         session_manager = get_global_session_manager()

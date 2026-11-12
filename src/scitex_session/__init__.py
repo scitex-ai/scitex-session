@@ -234,9 +234,9 @@ def _activate_observers(observers=None) -> None:
     registrar that raises or returns False is LOGGED, never silent, never
     fatal to the import.
     """
-    import logging
+    from scitex_logging import getLogger
 
-    log = logging.getLogger(__name__)
+    log = getLogger(__name__)
     if observers is None:
         observers = _discover_observer_registrars()
     for name, registrar in observers:
@@ -261,9 +261,9 @@ def _discover_observer_registrars() -> list:
     """Load ``(name, 0-arg registrar)`` pairs from the
     ``scitex_session.observers`` entry-point group. A registrar that fails to
     *load* is logged and skipped (never fatal to the import)."""
-    import logging
+    from scitex_logging import getLogger
 
-    log = logging.getLogger(__name__)
+    log = getLogger(__name__)
     try:
         from importlib.metadata import entry_points
     except ImportError:  # pragma: no cover

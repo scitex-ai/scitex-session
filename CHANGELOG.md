@@ -7,6 +7,13 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- Defer lifecycle initialization so archive imports and CLI discovery do not load plotting or scientific data libraries.
+
+- Declare the shared development and logging APIs used by the session lifecycle as runtime dependencies.
+- Route lifecycle diagnostics and archive CLI summaries through shared logging while retaining summaries on stdout.
+- Reuse pinned shared CI workflows while retaining both protected branches’ required test contexts, strict PR docs and reviewed documentation bundle updates.
+- Validate nested peer imports after checking the optional root package; align lazy-import regression tests with their source module.
+
 - Remove the legacy admin auto-merge workflow and require the full declared test profile without fallback installs.
 
 - Render the session decorator reference without an unsupported nested section heading.

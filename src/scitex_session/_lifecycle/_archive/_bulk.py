@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-import logging
+import scitex_logging as slogging
 from pathlib import Path
 from typing import Optional, Union
 
@@ -18,7 +18,7 @@ from ._core import (
 )
 from ._single import archive_session_dir, restore_session_archive
 
-logger = logging.getLogger(__name__)
+logger = slogging.getLogger(__name__)
 
 
 def archive_existing(

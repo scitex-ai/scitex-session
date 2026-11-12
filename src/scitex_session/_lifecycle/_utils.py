@@ -8,7 +8,7 @@ from __future__ import annotations
 import os as _os
 import re
 from datetime import datetime
-from logging import getLogger
+from scitex_logging import getLogger
 from time import sleep
 from typing import Any, Dict, Tuple
 
@@ -25,7 +25,7 @@ def get_scitex_version() -> str:
 
         return scitex.__version__
     except Exception as e:
-        print(e)
+        logger.warning("%s", e)
         return "(not found)"
 
 
@@ -47,7 +47,7 @@ def get_debug_mode() -> bool:
             IS_DEBUG = False
 
     except Exception as e:
-        print(e)
+        logger.warning("%s", e)
         IS_DEBUG = False
     return IS_DEBUG
 
@@ -101,7 +101,7 @@ def clear_python_log_dir(log_dir: str) -> None:
         if _os.path.exists(log_dir):
             _os.system(f"rm -rf {log_dir}")
     except Exception as e:
-        print(f"Failed to clear directory {log_dir}: {e}")
+        logger.error(f"Failed to clear directory {log_dir}: {e}")
 
 
 def print_header(
@@ -177,7 +177,7 @@ def process_timestamp(CONFIG, verbose=True):
             )
 
     except Exception as e:
-        print(e)
+        logger.warning("%s", e)
 
     return CONFIG
 

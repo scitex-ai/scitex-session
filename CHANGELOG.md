@@ -7,6 +7,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- Remove the legacy admin auto-merge workflow and require the full declared test profile without fallback installs.
+
 - Render the session decorator reference without an unsupported nested section heading.
 
 ### Added

@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
 
-from logging import getLogger
+from scitex_logging import getLogger
 
 logger = getLogger(__name__)
 

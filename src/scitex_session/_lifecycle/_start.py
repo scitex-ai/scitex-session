@@ -8,7 +8,7 @@ from __future__ import annotations
 import inspect
 import logging
 import os as _os
-from logging import getLogger
+from scitex_logging import getLogger
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple, Union
 
@@ -371,7 +371,7 @@ def _redirect_logging_handlers(sys) -> None:
     # Update all existing StreamHandler instances
     for logger_name in list(logging.Logger.manager.loggerDict.keys()):
         try:
-            lgr = logging.getLogger(logger_name)
+            lgr = getLogger(logger_name)
             for handler in lgr.handlers:
                 if isinstance(handler, logging.StreamHandler):
                     if not hasattr(handler, "stream"):
@@ -387,7 +387,7 @@ def _redirect_logging_handlers(sys) -> None:
 
     # Also update the root logger handlers
     try:
-        root_logger = logging.getLogger()
+        root_logger = getLogger()
         for handler in root_logger.handlers:
             if isinstance(handler, logging.StreamHandler):
                 if not hasattr(handler, "stream"):

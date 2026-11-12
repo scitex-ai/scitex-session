@@ -1,0 +1,42 @@
+name: import-smoke
+
+# Catches "wheel installs but `import scitex_session` blows up at runtime"
+# — separate from the full pytest suite so a broken entry-point fails
+# fast without paying for the matrix. Companion to `tests` — confirms
+# the bare package (no extras) is `pip install -e .`-able and
+# `import scitex_session` succeeds. Catches `[project] dependencies`
+# drift that the test matrix masks because it installs `[all,dev]`.
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    - cron: "0 17 * * *"  # nightly 17:00 UTC (~02:00 JST), off-peak
+  workflow_dispatch:
+
+jobs:
+  import-smoke:
+    uses: scitex-ai/.github/.github/workflows/import-smoke.yml@103726f97249dcb1bf9c37ad235dec991a0399f9
+    with:
+      runs_on: '["ubuntu-latest"]'
+
+  # Preserve the original base-only __version__ assertion in addition to
+  # the shared generic import gate. No optional extras are installed here.
+  install-check:
+    needs: import-smoke
+    name: import-smoke-on-ubuntu-py3-12
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install (no extras)
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install -e .
+      - name: Import smoke
+        run: .venv/bin/python -c "import scitex_session; print(scitex_session.__version__)"

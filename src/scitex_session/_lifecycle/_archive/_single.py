@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-import logging
+import scitex_logging as slogging
 import os
 import shutil
 import tarfile
@@ -20,7 +20,7 @@ from ._core import (
     format_to_suffix,
 )
 
-logger = logging.getLogger(__name__)
+logger = slogging.getLogger(__name__)
 
 
 def archive_session_dir(

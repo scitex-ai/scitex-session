@@ -1,0 +1,213 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>scitex_session._hooks &mdash; scitex-session 0.3.2 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+      <link rel="stylesheet" type="text/css" href="../../_static/sphinx_autodoc_typehints.css?v=057ac668" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=71d9d8e6"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            scitex-session
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../api.html">API</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">scitex-session</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">scitex_session._hooks</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for scitex_session._hooks</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python3</span>
+<span class="c1"># File: ./src/scitex_session/_hooks.py</span>
+<span class="c1"># ----------------------------------------</span>
+<span class="sd">"""In-process lifecycle-hook registry for scitex-session.</span>
+
+<span class="sd">This is the observer seam that keeps the dependency graph acyclic. Downstream</span>
+<span class="sd">packages (e.g. scitex-clew, which records session lineage) SUBSCRIBE to session</span>
+<span class="sd">lifecycle events instead of session importing them by name. It mirrors the</span>
+<span class="sd">scitex-io post-save/-load hook seam: the producer exposes a hook point and</span>
+<span class="sd">never names the consumer; the consumer subscribes lazily (clew installs a</span>
+<span class="sd">``sys.meta_path`` finder that registers on ``import scitex_session``). Direction</span>
+<span class="sd">of dependency is therefore always ``observer -&gt; scitex_session``, never the</span>
+<span class="sd">reverse.</span>
+
+<span class="sd">Contract (stable, do not change without coordinating with subscribers):</span>
+
+<span class="sd">- ``register_session_start_hook(fn)`` — ``fn`` is called at session start as</span>
+<span class="sd">  ``fn(session_id, script_path, metadata)`` (positional).</span>
+<span class="sd">- ``register_session_close_hook(fn)`` — ``fn`` is called at session close as</span>
+<span class="sd">  ``fn(status, exit_code)`` (positional).</span>
+
+<span class="sd">Every hook is fired inside an isolated ``try/except Exception: pass`` — a</span>
+<span class="sd">misbehaving or absent subscriber can never break a session (the same</span>
+<span class="sd">silent-fail semantics the direct clew import had).</span>
+<span class="sd">"""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">List</span>
+
+<span class="c1"># Module-level registries. Kept as plain lists so ordering is deterministic</span>
+<span class="c1"># (registration order) and membership checks stay simple.</span>
+<span class="n">_SESSION_START_HOOKS</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">_SESSION_CLOSE_HOOKS</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+
+
+<div class="viewcode-block" id="register_session_start_hook">
+<a class="viewcode-back" href="../../api.html#scitex_session.register_session_start_hook">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">register_session_start_hook</span><span class="p">(</span><span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Register ``fn`` to be called at session start.</span>
+
+<span class="sd">    ``fn`` is invoked as ``fn(session_id, script_path, metadata)``. Registration</span>
+<span class="sd">    is idempotent (registering the same callable twice is a no-op). Returns</span>
+<span class="sd">    ``fn`` so it can also be used as a decorator.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">fn</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_SESSION_START_HOOKS</span><span class="p">:</span>
+        <span class="n">_SESSION_START_HOOKS</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">fn</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">fn</span></div>
+
+
+
+<div class="viewcode-block" id="register_session_close_hook">
+<a class="viewcode-back" href="../../api.html#scitex_session.register_session_close_hook">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">register_session_close_hook</span><span class="p">(</span><span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Register ``fn`` to be called at session close.</span>
+
+<span class="sd">    ``fn`` is invoked as ``fn(status, exit_code)``. Registration is idempotent.</span>
+<span class="sd">    Returns ``fn`` so it can also be used as a decorator.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">fn</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_SESSION_CLOSE_HOOKS</span><span class="p">:</span>
+        <span class="n">_SESSION_CLOSE_HOOKS</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">fn</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">fn</span></div>
+
+
+
+<div class="viewcode-block" id="unregister_session_start_hook">
+<a class="viewcode-back" href="../../api.html#scitex_session.unregister_session_start_hook">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">unregister_session_start_hook</span><span class="p">(</span><span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Remove a previously registered start hook (no-op if absent)."""</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">_SESSION_START_HOOKS</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">fn</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+        <span class="k">pass</span></div>
+
+
+
+<div class="viewcode-block" id="unregister_session_close_hook">
+<a class="viewcode-back" href="../../api.html#scitex_session.unregister_session_close_hook">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">unregister_session_close_hook</span><span class="p">(</span><span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Remove a previously registered close hook (no-op if absent)."""</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">_SESSION_CLOSE_HOOKS</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">fn</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+        <span class="k">pass</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_fire_session_start_hooks</span><span class="p">(</span>
+    <span class="n">session_id</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">script_path</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">metadata</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Fire all registered start hooks (isolated silent-fail per hook)."""</span>
+    <span class="k">for</span> <span class="n">hook</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">_SESSION_START_HOOKS</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">hook</span><span class="p">(</span><span class="n">session_id</span><span class="p">,</span> <span class="n">script_path</span><span class="p">,</span> <span class="n">metadata</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_fire_session_close_hooks</span><span class="p">(</span><span class="n">status</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="s2">"success"</span><span class="p">,</span> <span class="n">exit_code</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Fire all registered close hooks (isolated silent-fail per hook)."""</span>
+    <span class="k">for</span> <span class="n">hook</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">_SESSION_CLOSE_HOOKS</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">hook</span><span class="p">(</span><span class="n">status</span><span class="p">,</span> <span class="n">exit_code</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+
+<span class="c1"># EOF</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Yusuke Watanabe.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

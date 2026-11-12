@@ -1,0 +1,36 @@
+name: tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    - cron: "0 17 * * *"  # nightly 17:00 UTC (~02:00 JST), off-peak
+  workflow_dispatch:
+
+jobs:
+  pytest-matrix:
+    uses: scitex-ai/.github/.github/workflows/pytest-matrix.yml@103726f97249dcb1bf9c37ad235dec991a0399f9
+    with:
+      runs_on: '["ubuntu-latest"]'
+      full_python_versions: '["3.11", "3.12", "3.13"]'
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  # Develop requires these existing bare contexts; main requires the shared
+  # contexts above. Keep both sets without weakening either protection list.
+  test:
+    name: pytest-matrix-on-ubuntu-py${{ matrix.python-version }}
+    needs: pytest-matrix
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - name: Require the complete shared test matrix to succeed
+        env:
+          MATRIX_RESULT: ${{ needs.pytest-matrix.result }}
+        run: test "$MATRIX_RESULT" = success

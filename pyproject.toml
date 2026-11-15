@@ -59,6 +59,7 @@ dev = [
     "fastmcp>=2.0",
 ]
 docs = [
+    "tomli>=2.0; python_version < '3.11'",
     "sphinx>=7.0",
     "sphinx-rtd-theme>=2.0",
     "myst-parser>=2.0",

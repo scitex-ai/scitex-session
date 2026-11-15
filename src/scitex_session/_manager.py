@@ -70,13 +70,17 @@ class SessionManager:
         exit_code : int, optional
             Exit code of the session
         """
+        self._close_record(session_id, exit_code)
+
+        # Notify lifecycle subscribers of session close (e.g. clew lineage).
+        _fire_session_close_hooks(status=status, exit_code=exit_code)
+
+    def _close_record(self, session_id: str, exit_code: int) -> None:
+        """Finalize known in-memory records without dispatching lifecycle hooks."""
         if session_id in self.active_sessions:
             self.active_sessions[session_id]["status"] = "closed"
             self.active_sessions[session_id]["end_time"] = datetime.now()
             self.active_sessions[session_id]["exit_code"] = exit_code
-
-        # Notify lifecycle subscribers of session close (e.g. clew lineage).
-        _fire_session_close_hooks(status=status, exit_code=exit_code)
 
     def get_active_sessions(self) -> Dict[str, Any]:
         """Get all active sessions.

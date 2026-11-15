@@ -36,6 +36,7 @@ each. **Dry-run by default** — review the plan before writing.
 scitex-session-archive compress script_out/FINISHED_SUCCESS \
     --older-than-days 30 \
     --format tar.gz \
+    --track-bytes \
     --execute
 ```
 
@@ -44,10 +45,18 @@ scitex-session-archive compress script_out/FINISHED_SUCCESS \
 | `--older-than-days N` | `None`      | Only compress sessions older than `N` days.             |
 | `--format FMT`        | `tar.gz`    | One of `tar.gz` / `tar` / `tar.xz`.                     |
 | `--pattern STR`       | `None`      | Substring filter on session-dir names.                  |
-| `--remove-src`        | `True`      | Delete source dir after a verified archive write.       |
+| `--remove-src` / `--no-remove-src` | `True` | Delete source after archival; `--no-remove-src` retains original files. |
 | `--dry-run`           | `True`      | Pass `--no-dry-run` or `--execute` to actually write.   |
 | `--max-dirs N`        | `10000`     | Safety cap. `0` disables.                               |
+| `--track-bytes`       | `False`     | Compute byte totals; totals stay zero when omitted.    |
+| `--use-fd` / `--no-use-fd` | `True` | Use fd when available or force Python enumeration. |
 | `--verbose`           | off         | DEBUG-level logging on stderr.                          |
+
+To archive while retaining the original source, add `--no-remove-src`.
+The CLI forwards this policy to `archive_existing` in
+`_lifecycle/_archive/_bulk.py`;
+`tests/scitex_session/test_archive_retention.py` checks real Python, CLI and
+in-memory MCP writes across all three formats, including unchanged defaults.
 
 Prints a one-line summary on stdout through shared SciTeX logging.
 The payload below omits the logging prefix; diagnostics go to stderr:

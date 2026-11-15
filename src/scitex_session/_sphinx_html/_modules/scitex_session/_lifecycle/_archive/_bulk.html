@@ -107,11 +107,15 @@
     <span class="n">max_dirs</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">track_bytes</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">use_fd</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">remove_src</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Bulk compress every session-shaped child of ``root``.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
+<span class="sd">    remove_src : bool, default True</span>
+<span class="sd">        Delete source directories after successful archival. Set False to</span>
+<span class="sd">        retain the original files as well as the archives. Ignored in dry-run.</span>
 <span class="sd">    track_bytes : bool, default False</span>
 <span class="sd">        When True, run a per-candidate ``dir_size()`` (os.walk +</span>
 <span class="sd">        getsize per file) so that ``bytes_in`` / ``bytes_out`` in the</span>
@@ -191,7 +195,7 @@
 
         <span class="k">try</span><span class="p">:</span>
             <span class="n">archive_path</span> <span class="o">=</span> <span class="n">archive_session_dir</span><span class="p">(</span>
-                <span class="n">candidate</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="nb">format</span><span class="p">,</span> <span class="n">remove_src</span><span class="o">=</span><span class="kc">True</span>
+                <span class="n">candidate</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="nb">format</span><span class="p">,</span> <span class="n">remove_src</span><span class="o">=</span><span class="n">remove_src</span>
             <span class="p">)</span>
             <span class="n">summary</span><span class="p">[</span><span class="s2">"archived"</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
             <span class="k">if</span> <span class="n">track_bytes</span><span class="p">:</span>

@@ -116,11 +116,10 @@ def setup_matplotlib(
                 "during module initialization for headless environment"
             )
 
-        # Replace matplotlib.pyplot with scitex.plt to get wrapped
-        # functions when available. scitex-plt is an optional visualization
-        # dep — not a hard requirement of scitex-session — so fall back to
-        # the plain pyplot module when it isn't installed (mirrors the
-        # figrecipe.configure_mpl fallback above).
+        # Use the standalone wrapper provided by the declared scitex-plt
+        # runtime dependency. Retain the defensive pyplot fallback for
+        # manually assembled or incomplete environments; it does not make
+        # that declared requirement optional.
         stx_plt = try_import_optional("scitex_plt")
         if stx_plt is None:
             return plt, COLORS

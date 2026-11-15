@@ -200,6 +200,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             max_dirs=max_dirs,
             track_bytes=args.track_bytes,
             use_fd=args.use_fd,
+            remove_src=args.remove_src,
         )
         mode = "dry-run" if args.dry_run else "executed"
         slogging.getConsole(__name__).info(_format_summary(f"compress ({mode})", summary))

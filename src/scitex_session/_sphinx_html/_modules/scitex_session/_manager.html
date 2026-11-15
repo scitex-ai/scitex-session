@@ -152,14 +152,18 @@
 <span class="sd">        exit_code : int, optional</span>
 <span class="sd">            Exit code of the session</span>
 <span class="sd">        """</span>
-        <span class="k">if</span> <span class="n">session_id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">active_sessions</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">active_sessions</span><span class="p">[</span><span class="n">session_id</span><span class="p">][</span><span class="s2">"status"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"closed"</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">active_sessions</span><span class="p">[</span><span class="n">session_id</span><span class="p">][</span><span class="s2">"end_time"</span><span class="p">]</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">active_sessions</span><span class="p">[</span><span class="n">session_id</span><span class="p">][</span><span class="s2">"exit_code"</span><span class="p">]</span> <span class="o">=</span> <span class="n">exit_code</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_close_record</span><span class="p">(</span><span class="n">session_id</span><span class="p">,</span> <span class="n">exit_code</span><span class="p">)</span>
 
         <span class="c1"># Notify lifecycle subscribers of session close (e.g. clew lineage).</span>
         <span class="n">_fire_session_close_hooks</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="n">status</span><span class="p">,</span> <span class="n">exit_code</span><span class="o">=</span><span class="n">exit_code</span><span class="p">)</span></div>
 
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_close_record</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">session_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">exit_code</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Finalize known in-memory records without dispatching lifecycle hooks."""</span>
+        <span class="k">if</span> <span class="n">session_id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">active_sessions</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">active_sessions</span><span class="p">[</span><span class="n">session_id</span><span class="p">][</span><span class="s2">"status"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"closed"</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">active_sessions</span><span class="p">[</span><span class="n">session_id</span><span class="p">][</span><span class="s2">"end_time"</span><span class="p">]</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">active_sessions</span><span class="p">[</span><span class="n">session_id</span><span class="p">][</span><span class="s2">"exit_code"</span><span class="p">]</span> <span class="o">=</span> <span class="n">exit_code</span>
 
 <div class="viewcode-block" id="SessionManager.get_active_sessions">
 <a class="viewcode-back" href="../../api.html#scitex_session.SessionManager.get_active_sessions">[docs]</a>

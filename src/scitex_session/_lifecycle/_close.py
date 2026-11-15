@@ -47,7 +47,7 @@ def running2finished(
     CONFIG : dict
         Session configuration dictionary
     exit_status : int, optional
-        Exit status code (0=success, 1=error, None=finished)
+        Exit status code (0=success, nonzero=error, None=finished)
     remove_src_dir : bool, default=True
         Whether to remove source directory after copy
     max_wait : int, default=60
@@ -61,10 +61,16 @@ def running2finished(
     -------
     dict
         Updated configuration with new SDIR
+
+    Raises
+    ------
+    OSError
+        Filesystem copy or requested source-removal failure. Partial output
+        is left in place for inspection; no rollback is attempted.
     """
     if exit_status == 0:
         dest_dir = str(CONFIG["SDIR_RUN"]).replace("RUNNING/", "FINISHED_SUCCESS/")
-    elif exit_status == 1:
+    elif exit_status is not None:
         dest_dir = str(CONFIG["SDIR_RUN"]).replace("RUNNING/", "FINISHED_ERROR/")
     else:
         dest_dir = str(CONFIG["SDIR_RUN"]).replace("RUNNING/", "FINISHED/")
@@ -85,18 +91,6 @@ def running2finished(
         while not _os.path.exists(dest_dir) and time.time() - start_time < max_wait:
             time.sleep(0.1)
         if _os.path.exists(dest_dir):
-            if exit_status == 1:
-                logger.error(
-                    f"Script failed: {dest_dir}",
-                )
-            elif exit_status == 0:
-                logger.info(
-                    f"Congratulations! The script completed: {dest_dir}",
-                )
-            else:
-                logger.info(
-                    f"Script finished: {dest_dir}",
-                )
 
             if remove_src_dir:
                 shutil.rmtree(src_dir)
@@ -108,6 +102,19 @@ def running2finished(
                     os.rmdir(running_base)
                 except OSError:
                     pass
+
+            if exit_status is not None and exit_status != 0:
+                logger.error(
+                    f"Script failed: {dest_dir}",
+                )
+            elif exit_status == 0:
+                logger.info(
+                    f"Congratulations! The script completed: {dest_dir}",
+                )
+            else:
+                logger.info(
+                    f"Script finished: {dest_dir}",
+                )
 
         else:
             logger.error(f"Copy operation timed out after {max_wait} seconds")
@@ -136,9 +143,9 @@ def running2finished(
                 )
     except Exception as e:
         logger.error("%s", e)
+        raise
 
-    finally:
-        return CONFIG
+    return CONFIG
 
 
 def close(
@@ -162,7 +169,7 @@ def close(
     verbose : bool, default=True
         Whether to print verbose output
     exit_status : int, optional
-        Exit status code (0=success, 1=error, None=finished)
+        Exit status code (0=success, nonzero=error, None=finished)
     archive_format : str, optional
         If set (e.g. "tar.gz"), replace the FINISHED dest dir with a
         single archive file. ``None`` (default) preserves the original
@@ -172,9 +179,11 @@ def close(
     _stop_verification(exit_status)
 
     sys = None
+    session_id = None
     try:
         CONFIG.EXIT_STATUS = exit_status
         CONFIG = CONFIG.to_dict()
+        session_id = CONFIG.get("ID")
         CONFIG = process_timestamp(CONFIG, verbose=verbose)
         sys = CONFIG.pop("_sys", None)
 
@@ -228,8 +237,18 @@ def close(
 
         # Close session
         session_manager = get_global_session_manager()
-        session_manager.close_session(CONFIG["ID"])
+        session_manager.close_session(
+            CONFIG["ID"],
+            status="failed" if exit_status else "success",
+            exit_code=exit_status or 0,
+        )
 
+    except Exception:
+        if session_id is not None:
+            get_global_session_manager()._close_record(
+                session_id, exit_code=exit_status or 1
+            )
+        raise
     finally:
         # Only close if they're custom file objects (Tee objects)
         if sys:
@@ -293,11 +312,13 @@ def _stop_verification(exit_status: int) -> None:
 
     Dispatches to registered session-close hooks (e.g. clew lineage) via the
     acyclic registry; session never imports the subscriber. See _hooks.py.
+    An omitted exit status uses the registry/manager success/0 convention;
+    configuration and output routing retain their separate neutral None value.
     """
     try:
         from .._hooks import _fire_session_close_hooks
 
-        status = "success" if exit_status == 0 else "failed"
+        status = "success" if exit_status in (None, 0) else "failed"
         _fire_session_close_hooks(status=status, exit_code=exit_status or 0)
     except Exception:
         pass

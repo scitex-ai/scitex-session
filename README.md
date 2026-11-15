@@ -120,17 +120,25 @@ def main(
 
 ## Status
 
-Standalone fork of `scitex.session`. Deps: matplotlib + scitex-dict /
--logging / -repro / -str (already-standalone peer packages).
+Standalone fork of `scitex.session`. Runtime requirements for this checkout are
+declared in [pyproject.toml](./pyproject.toml), including `scitex-plt` and
+`scitex-dev`; the umbrella package is not required.
 
 Decoupling notes:
 - `scitex.dict.DotDict` → `scitex_dict.DotDict`
 - `scitex.repro.RandomStateManager / gen_ID` → `scitex_repro.*`
 - `scitex.str.clean_path / printc` → `scitex_str.*`
-- `scitex.logging.getLogger` → stdlib `logging.getLogger`
-- `scitex.plt.utils._configure_mpl` → optional via `try/except` with no-op
-  fallback (matplotlib uses defaults if scitex umbrella isn't installed).
+- Logging uses `scitex_logging.getLogger`, not the stdlib replacement described
+  in earlier versions of this README.
+- `_lifecycle/_matplotlib.py` resolves FigRecipe configuration lazily and uses
+  the standalone `scitex_plt` wrapper. Its defensive fallback to plain pyplot
+  does not make the declared `scitex-plt` requirement optional.
 - `scitex.utils._notify` → optional via `try/except` (silent no-op fallback).
+
+The owning lazy-import checks are in
+[`test__matplotlib.py`](./tests/scitex_session/_lifecycle/test__matplotlib.py).
+They check that lifecycle/MCP imports avoid pyplot; they do not verify every
+plot, live notification delivery or umbrella integration.
 
 The umbrella package's `scitex.session` import path is preserved via a
 `sys.modules`-alias bridge.

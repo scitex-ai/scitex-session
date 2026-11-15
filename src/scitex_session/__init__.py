@@ -18,7 +18,14 @@ THE one public entry point is the decorator::
 It parses CLI args from ``main``'s signature, loads ``config/*.yaml``,
 configures matplotlib + logging, seeds a reproducible RNG, runs the
 function, writes outputs under ``script_out/<status>/<session_id>/``,
-and records clew lineage. That is the supported, recommended surface.
+and emits lifecycle events to registered in-process hooks. That is the
+supported, recommended surface. Persistent lineage recording requires a
+subscriber such as Clew to register and handle those events.
+
+``_hooks.py`` owns callback dispatch; ordinary-exception isolation and
+registered/absent subscriber behavior are checked in
+``tests/scitex_session/test__hooks.py``. Persistent lineage storage needs
+separate subscriber integration checks.
 
 The low-level building blocks the decorator orchestrates — ``start()``
 (``start(sys, plt, ...)``) and ``run()`` (the imperative, non-decorator

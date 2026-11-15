@@ -8,7 +8,7 @@ version = "0.3.2"
 description = "@session decorator + lifecycle (auto-CLI, output dir tree, RandomStateManager) — standalone module from the SciTeX ecosystem"
 readme = "README.md"
 license = "AGPL-3.0-only"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [{name = "Yusuke Watanabe", email = "ywatanabe@scitex.ai"}]
 keywords = ["scitex", "session", "experiment-tracking", "reproducibility"]
 classifiers = [
@@ -41,6 +41,7 @@ dependencies = [
 [project.optional-dependencies]
 mcp = ["fastmcp>=2.0"]
 dev = [
+    "tomli>=2.0; python_version < '3.11'",
     "joblib",
     "flask",
     "figrecipe",
@@ -58,6 +59,7 @@ dev = [
     "fastmcp>=2.0",
 ]
 docs = [
+    "tomli>=2.0; python_version < '3.11'",
     "sphinx>=7.0",
     "sphinx-rtd-theme>=2.0",
     "myst-parser>=2.0",
@@ -107,7 +109,7 @@ source = ["scitex_session"]
 concurrency = ["multiprocessing", "thread"]
 
 [tool.ruff]
-target-version = "py39"
+target-version = "py310"
 line-length = 88
 
 [tool.ruff.lint]

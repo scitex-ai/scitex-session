@@ -30,11 +30,15 @@ def archive_existing(
     max_dirs: Optional[int] = None,
     track_bytes: bool = False,
     use_fd: bool = True,
+    remove_src: bool = True,
 ) -> dict:
     """Bulk compress every session-shaped child of ``root``.
 
     Parameters
     ----------
+    remove_src : bool, default True
+        Delete source directories after successful archival. Set False to
+        retain the original files as well as the archives. Ignored in dry-run.
     track_bytes : bool, default False
         When True, run a per-candidate ``dir_size()`` (os.walk +
         getsize per file) so that ``bytes_in`` / ``bytes_out`` in the
@@ -114,7 +118,7 @@ def archive_existing(
 
         try:
             archive_path = archive_session_dir(
-                candidate, format=format, remove_src=True
+                candidate, format=format, remove_src=remove_src
             )
             summary["archived"] += 1
             if track_bytes:

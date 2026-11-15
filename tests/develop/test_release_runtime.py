@@ -4,7 +4,10 @@ import os
 from pathlib import Path
 import subprocess
 import sys
-import tomllib
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10
+    import tomli as tomllib
 import zipfile
 
 import pytest
@@ -105,7 +108,7 @@ def test_release_uses_shared_native_tests_and_source_bound_publication():
     # Assert
     assert observed == {
         'native': 'scitex-ai/.github/.github/workflows/pytest-matrix.yml@103726f97249dcb1bf9c37ad235dec991a0399f9',
-        'native_overrides': None, 'native_secrets': {'CODECOV_TOKEN'},
+        'native_overrides': {'full_python_versions': '["3.10", "3.11", "3.12", "3.13"]'}, 'native_secrets': {'CODECOV_TOKEN'},
         'build_needs': ['pytest-matrix', 'runner-admission'],
         'publish_needs': ['build', 'runner-admission'],
         'release_needs': ['build', 'publish', 'runner-admission'],

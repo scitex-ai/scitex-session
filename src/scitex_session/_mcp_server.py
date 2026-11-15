@@ -10,7 +10,7 @@ public Python API in :mod:`scitex_session`; outputs are JSON-serialized
 dicts (same shape the Python API returns).
 
 The §5 ``skills_list`` / ``skills_get`` envelope tools delegate to
-``scitex_dev.skills`` so agents can discover this package's skill pages
+``scitex_dev.ecosystem`` so agents can discover this package's skill pages
 without a separate filesystem walk.
 
 This module follows the canonical "one FastMCP instance per package"
@@ -126,6 +126,7 @@ async def archive_existing(
     max_dirs: Optional[int] = None,
     track_bytes: bool = False,
     use_fd: bool = True,
+    remove_src: bool = True,
 ) -> str:
     """Compress every session-shaped dir under ``root`` into a single archive each.
 
@@ -133,7 +134,8 @@ async def archive_existing(
     ``dry_run=False`` to actually write. ``track_bytes=False`` (default)
     skips the per-session ``dir_size`` accounting; set True when you need
     ``bytes_in`` / ``bytes_out`` populated. ``use_fd=True`` (default)
-    dispatches candidate enumeration to ``fd`` when installed.
+    dispatches candidate enumeration to ``fd`` when installed. Set
+    ``remove_src=False`` to retain source directories after archival.
 
     Returns
     -------
@@ -151,6 +153,7 @@ async def archive_existing(
         max_dirs=max_dirs,
         track_bytes=track_bytes,
         use_fd=use_fd,
+        remove_src=remove_src,
     )
     return json.dumps(summary)
 
@@ -253,7 +256,7 @@ async def finalize_session(
     config : dict
         Session configuration. Must contain ``SDIR_RUN``.
     exit_status : int, optional
-        ``0`` → FINISHED_SUCCESS; ``1`` → FINISHED_ERROR; ``None`` → FINISHED.
+        ``0`` → FINISHED_SUCCESS; nonzero → FINISHED_ERROR; ``None`` → FINISHED.
     remove_src_dir : bool, default True
         Remove the source ``RUNNING/<session>/`` after a verified copy.
     max_wait : int, default 60
@@ -291,12 +294,12 @@ async def skills_list() -> str:
     Returns
     -------
     str
-        JSON-encoded ``{"skills": [{"name": ..., "description": ...}, ...]}``.
+        JSON-encoded mapping from skill namespace to metadata rows.
     """
     try:
-        from scitex_dev import list_skills
+        from scitex_dev.ecosystem import list_skills
     except ImportError:
-        # scitex_dev is optional — surface a clear message rather than crashing.
+        # Preserve the dependency-unavailable result for a broken installation.
         return json.dumps(
             {
                 "skills": [],
@@ -309,7 +312,7 @@ async def skills_list() -> str:
 
 @_tool()
 async def skills_get(name: Optional[str] = None) -> str:
-    """Get the content of a skitex-session skill page (defaults to SKILL.md).
+    """Get the content of a scitex-session skill page (defaults to SKILL.md).
 
     Parameters
     ----------
@@ -323,7 +326,7 @@ async def skills_get(name: Optional[str] = None) -> str:
         JSON-encoded ``{"name": ..., "content": ...}``.
     """
     try:
-        from scitex_dev import get_skill
+        from scitex_dev.ecosystem import get_skill
     except ImportError:
         return json.dumps(
             {

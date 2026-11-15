@@ -112,7 +112,13 @@
 <p>It parses CLI args from <code class="docutils literal notranslate"><span class="pre">main</span></code>’s signature, loads <code class="docutils literal notranslate"><span class="pre">config/*.yaml</span></code>,
 configures matplotlib + logging, seeds a reproducible RNG, runs the
 function, writes outputs under <code class="docutils literal notranslate"><span class="pre">script_out/&lt;status&gt;/&lt;session_id&gt;/</span></code>,
-and records clew lineage. That is the supported, recommended surface.</p>
+and emits lifecycle events to registered in-process hooks. That is the
+supported, recommended surface. Persistent lineage recording requires a
+subscriber such as Clew to register and handle those events.</p>
+<p><code class="docutils literal notranslate"><span class="pre">_hooks.py</span></code> owns callback dispatch; ordinary-exception isolation and
+registered/absent subscriber behavior are checked in
+<code class="docutils literal notranslate"><span class="pre">tests/scitex_session/test__hooks.py</span></code>. Persistent lineage storage needs
+separate subscriber integration checks.</p>
 <p>The low-level building blocks the decorator orchestrates — <code class="docutils literal notranslate"><span class="pre">start()</span></code>
 (<code class="docutils literal notranslate"><span class="pre">start(sys,</span> <span class="pre">plt,</span> <span class="pre">...)</span></code>) and <code class="docutils literal notranslate"><span class="pre">run()</span></code> (the imperative, non-decorator
 runner) — are INTERNAL. They are easy to misuse: <code class="docutils literal notranslate"><span class="pre">&#64;scitex_session.start</span></code>
@@ -229,7 +235,7 @@ named generators via <code class="docutils literal notranslate"><span class="pre
 <li><p><strong>message</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a><em>, </em><em>default=':</em><em>)</em><em>'</em>) – Completion message</p></li>
 <li><p><strong>notify</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><em>bool</em></a><em>, </em><em>default=False</em>) – Whether to send notification</p></li>
 <li><p><strong>verbose</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><em>bool</em></a><em>, </em><em>default=True</em>) – Whether to print verbose output</p></li>
-<li><p><strong>exit_status</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a><em>, </em><em>optional</em>) – Exit status code (0=success, 1=error, None=finished)</p></li>
+<li><p><strong>exit_status</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a><em>, </em><em>optional</em>) – Exit status code (0=success, nonzero=error, None=finished)</p></li>
 <li><p><strong>archive_format</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a><em>, </em><em>optional</em>) – If set (e.g. “tar.gz”), replace the FINISHED dest dir with a
 single archive file. <code class="docutils literal notranslate"><span class="pre">None</span></code> (default) preserves the original
 copytree-only behavior bit-for-bit.</p></li>
@@ -246,7 +252,7 @@ copytree-only behavior bit-for-bit.</p></li>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>CONFIG</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><em>dict</em></a>) – Session configuration dictionary</p></li>
-<li><p><strong>exit_status</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a><em>, </em><em>optional</em>) – Exit status code (0=success, 1=error, None=finished)</p></li>
+<li><p><strong>exit_status</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a><em>, </em><em>optional</em>) – Exit status code (0=success, nonzero=error, None=finished)</p></li>
 <li><p><strong>remove_src_dir</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><em>bool</em></a><em>, </em><em>default=True</em>) – Whether to remove source directory after copy</p></li>
 <li><p><strong>max_wait</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a><em>, </em><em>default=60</em>) – Maximum seconds to wait for copy operation</p></li>
 <li><p><strong>archive_format</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a><em>, </em><em>optional</em>) – If set (e.g. “tar.gz”), replace the FINISHED dest dir with a
@@ -259,6 +265,10 @@ preserves the original copytree-only behavior bit-for-bit.</p></li>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)">dict</a></p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#OSError" title="(in Python v3.15)"><strong>OSError</strong></a> – Filesystem copy or requested source-removal failure. Partial output
+    is left in place for inspection; no rollback is attempted.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -387,11 +397,13 @@ archive file is deleted only after a successful rename.</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="scitex_session.archive_existing">
-<span class="sig-prename descclassname"><span class="pre">scitex_session.</span></span><span class="sig-name descname"><span class="pre">archive_existing</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">root</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">older_than_days</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'tar.gz'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pattern</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dry_run</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_dirs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">track_bytes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_fd</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/scitex_session/_lifecycle/_archive/_bulk.html#archive_existing"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#scitex_session.archive_existing" title="Link to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">scitex_session.</span></span><span class="sig-name descname"><span class="pre">archive_existing</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">root</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">older_than_days</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'tar.gz'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pattern</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dry_run</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_dirs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">track_bytes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_fd</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">remove_src</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/scitex_session/_lifecycle/_archive/_bulk.html#archive_existing"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#scitex_session.archive_existing" title="Link to this definition"></a></dt>
 <dd><p>Bulk compress every session-shaped child of <code class="docutils literal notranslate"><span class="pre">root</span></code>.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
+<li><p><strong>remove_src</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a></span>) – Delete source directories after successful archival. Set False to
+retain the original files as well as the archives. Ignored in dry-run.</p></li>
 <li><p><strong>track_bytes</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a></span>) – When True, run a per-candidate <code class="docutils literal notranslate"><span class="pre">dir_size()</span></code> (os.walk +
 getsize per file) so that <code class="docutils literal notranslate"><span class="pre">bytes_in</span></code> / <code class="docutils literal notranslate"><span class="pre">bytes_out</span></code> in the
 returned summary are populated. Off by default because the

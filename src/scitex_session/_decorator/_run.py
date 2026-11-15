@@ -40,6 +40,10 @@ def _run_with_session(
     decorated function is called with no arguments. It generates the
     argparse from the function signature, starts a session, executes
     the function with injected globals, then closes the session.
+
+    Ordinary cleanup exceptions propagate after final matplotlib cleanup if
+    the body returned. If the body is already raising, it remains the primary
+    exception and the cleanup error is logged.
     """
     # Get the calling file by walking the call stack outward past every
     # scitex_session / scitex_dev wrapper frame to the *user's* script.
@@ -106,6 +110,7 @@ def _run_with_session(
 
     exit_status = 0
     result = None
+    body_returned = False
 
     try:
         kwargs = vars(args)
@@ -149,13 +154,20 @@ def _run_with_session(
             exit_status = result
         else:
             exit_status = 0
+        body_returned = True
 
+    except SystemExit as e:
+        exit_status = (
+            e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
+        )
+        raise
     except Exception as e:
         _decorator_logger.error(f"Error in {func.__name__}: {e}", exc_info=True)
         exit_status = 1
         raise
 
     finally:
+        cleanup_error = None
         # Close session with error handling.
         try:
             close(
@@ -171,6 +183,7 @@ def _run_with_session(
         except KeyboardInterrupt:
             raise
         except Exception as e:
+            cleanup_error = e
             try:
                 _decorator_logger.error(f"Session cleanup error: {e}")
             except Exception:
@@ -185,6 +198,9 @@ def _run_with_session(
             _plt.close("all")
         except Exception:
             pass
+
+        if cleanup_error is not None and body_returned:
+            raise cleanup_error
 
     return result
 
@@ -205,6 +221,11 @@ def run(
        Reach it as ``scitex_session._run`` for power-user access; the bare
        ``scitex_session.run`` name is deprecated.
 
+    An ordinary cleanup error does not replace an already-raising body error;
+    it is logged as a secondary failure. If the body returned, the cleanup
+    error propagates normally. Explicit body-return state also handles calls
+    made from an existing caller exception handler.
+
     Parameters
     ----------
     func : callable
@@ -213,7 +234,10 @@ def run(
         Custom argument parser. If ``None``, an argparse parser is
         auto-generated from ``func``'s signature via :func:`_create_parser`.
     **session_kwargs
-        Forwarded to ``scitex_session.start`` / ``close``.
+        Forwarded unchanged to ``scitex_session.start``. Only the shared
+        ``verbose`` option is forwarded to ``close``; startup-only options
+        such as ``agg`` and ``seed`` are not cleanup arguments. Unsupported
+        startup keywords still raise ``TypeError`` before body execution.
 
     Returns
     -------
@@ -222,12 +246,17 @@ def run(
 
     Example::
 
+        import argparse
+        import scitex_session as sess
+
         def main(args):
             # ... your code ...
             return 0
 
         if __name__ == '__main__':
-            stx.session.run(main)
+            sess._run(
+                main, parse_args=lambda: argparse.Namespace(), verbose=False
+            )
     """
     if parse_args is None:
         parser = _create_parser(func)
@@ -253,22 +282,45 @@ def run(
     )
 
     exit_status: int = 0
+    body_returned = False
     try:
-        if hasattr(args, "__dict__"):
+        takes_namespace = hasattr(args, "__dict__")
+        if takes_namespace:
+            try:
+                takes_namespace = bool(inspect.signature(func).parameters)
+            except (TypeError, ValueError):
+                pass  # Preserve the legacy call for opaque signatures.
+        if takes_namespace:
             exit_status = func(args)
         else:
             exit_status = func()
         exit_status = exit_status or 0
+        body_returned = True
+    except SystemExit as e:
+        exit_status = (
+            e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
+        )
+        raise
     except Exception as e:
         _decorator_logger.error(f"Error: {e}", exc_info=True)
         exit_status = 1
         raise
     finally:
-        close(
-            CONFIG=CONFIG,
-            exit_status=exit_status,
-            **session_kwargs,
-        )
+        try:
+            close(
+                CONFIG=CONFIG,
+                exit_status=exit_status,
+                verbose=session_kwargs.get("verbose", True),
+            )
+        except Exception as cleanup_error:
+            if body_returned:
+                raise
+            try:
+                _decorator_logger.error(f"Session cleanup error: {cleanup_error}")
+            except Exception:
+                getPlainConsole(__name__).emit(
+                    f"Session cleanup error: {cleanup_error}", stream=sys_module.stderr
+                )
 
     return exit_status
 

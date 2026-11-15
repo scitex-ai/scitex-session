@@ -7,6 +7,22 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- Clarify subscriber-dependent lineage in the public API reference and anchor the audit gate to its owning checkout.
+- Restore MCP skill discovery and reads through Dev public ecosystem APIs; correct skills-list guidance and cover both standalone stdio launchers.
+- Record body SystemExit codes during decorator and advanced-runner cleanup, retaining original exits/tracebacks and Python-compatible None/integer/message status mapping.
+- Call zero-parameter advanced-runner bodies without a Namespace; preserve existing Namespace dispatch and execute raised-TypeError bodies only once.
+- Route advanced-runner startup-only options to start without passing invalid cleanup arguments; forward shared verbosity and retain early unsupported-keyword rejection and lifecycle/error contracts.
+- Preserve advanced imperative-runner body exceptions when ordinary cleanup also fails, while retaining cleanup-only error propagation and logging the secondary failure.
+- Finalize known manager records on ordinary close failure, preserving a requested nonzero exit code or using1; preserve original errors and existing observer dispatch.
+- Propagate ordinary decorator cleanup errors after returned bodies while preserving an existing body exception and final matplotlib cleanup; cover real filesystem collisions and traceback identity.
+- Surface output-finalization copy/source-removal failures to Python and MCP callers; emit completion logging only after requested cleanup succeeds, preserving recoverable partial output.
+- Correct MCP guidance to seven tools and document file-only finalize_session recovery, nonzero status routing and discovery defaults, backed by real local MCP regression cases.
+- Honor archive CLI `--no-remove-src`; expose the matching trailing `remove_src=True` option in the bulk Python/MCP provider without changing defaults or existing positional arguments.
+- Align default manual-close observers with the registry/manager success/0 convention while preserving neutral configuration/output semantics; add real lifecycle regression coverage.
+- Classify every nonzero exit code as `FINISHED_ERROR` with error-severity completion logging; preserve0/success andNone/neutral behavior, including directory and tar.gz payload handling. Replace source-string checks with real routing/logging regressions.
+- Forward the actual lifecycle failure status and exit code to manager finalization and close observers; preserve callback ordering/multiplicity and standalone manager defaults. Real decorated success, nonzero-return and exception regressions cover terminal records and event values.
+
 ## [0.3.2] - 2026-11-12
 
 - Include the reviewed HTML reference in wheel and source distributions, and verify every bundled document against its source during release builds.

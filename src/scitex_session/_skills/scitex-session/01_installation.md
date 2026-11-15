@@ -13,9 +13,11 @@ tags: [scitex-session-installation]
 pip install scitex-session
 ```
 
-Requires Python >= 3.9. Pulls in matplotlib plus the standalone peer
-packages `scitex-dict`, `scitex-logging`, `scitex-repro`, and
-`scitex-str`.
+Requires Python >= 3.10, matching the minimum supported by the required
+`scitex-dict`, `scitex-repro`, and `scitex-str` dependencies. The runtime
+dependencies are declared in `pyproject.toml`; pip also installs matplotlib,
+`scitex-plt`, `scitex-logging`, `scitex-dev`, `scitex-io`, and
+`scitex-context`.
 
 ## Standalone vs umbrella
 

@@ -1,6 +1,7 @@
 """Copy and cleanup failures remain observable through Python and real MCP."""
 import asyncio
 import json
+import shutil
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -28,7 +29,15 @@ def make_case(tmp_path, scenario, code):
         (target / "logs").mkdir(parents=True)
         source.symlink_to(target, target_is_directory=True)
         expected_destination = {"logs/payload.bin": PAYLOAD}
-        error_type, message = OSError, str(source)
+        # CPython versions differ in whether rmtree's OSError includes a path.
+        # Use the real platform error as the reference; the disposable link and
+        # target must survive this refusal before the provider is exercised.
+        try:
+            shutil.rmtree(str(source))
+        except OSError as expected_error:
+            error_type, message = type(expected_error), str(expected_error)
+        else:
+            raise AssertionError("rmtree accepted the symbolic-link fixture")
     (source / "logs" / "payload.bin").write_bytes(PAYLOAD)
     # No trailing slash: rmtree must reject the symbolic link itself.
     config = {"SDIR_RUN": str(source)}

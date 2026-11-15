@@ -43,7 +43,7 @@ echo "build: py=$("$PY" -V) target=$TMPDIR/site"
 # Install the complete PEP 517 frontend and auditor, then build with them.
 # Clean dist/ first so only the freshly
 # built artifacts are uploaded.
-uv pip install --python "$PY" --target="$TMPDIR/site" build "scitex-dev>=0.62.1"
+uv pip install --python "$PY" --target="$TMPDIR/site" build "scitex-dev>=0.62.1" "tomli>=2.0; python_version < '3.11'"
 
 export PYTHONPATH="$TMPDIR/site${PYTHONPATH:+:$PYTHONPATH}"
 
@@ -67,7 +67,10 @@ from importlib.metadata import version
 from packaging.version import Version
 from pathlib import Path
 import sys
-import tomllib
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10
+    import tomli as tomllib
 import zipfile
 import tarfile
 from scitex_dev._release.entrypoint_imports import audit_wheel_entry_point_imports

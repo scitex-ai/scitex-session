@@ -1,7 +1,7 @@
 name: release
 
 # Tag-driven release on the selected self-hosted runner and verified CI SIF.
-# All three Python test legs must pass before building, PyPI OIDC publication,
+# All four Python test legs must pass before building, PyPI OIDC publication,
 # and the automatic GitHub Release. Main promotion remains a separate PR.
 # Correct failed candidates through a new qualified version; keep tags immutable.
 # Shared admission selects the CPU pool; SCITEX_CI_SIF/APPTAINER select the image/runtime,
@@ -32,6 +32,8 @@ jobs:
 
   pytest-matrix:
     uses: scitex-ai/.github/.github/workflows/pytest-matrix.yml@103726f97249dcb1bf9c37ad235dec991a0399f9
+    with:
+      full_python_versions: '["3.10", "3.11", "3.12", "3.13"]'
     permissions:
       contents: read
     secrets:

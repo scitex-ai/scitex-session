@@ -41,6 +41,7 @@ dependencies = [
 [project.optional-dependencies]
 mcp = ["fastmcp>=2.0"]
 dev = [
+    "tomli>=2.0; python_version < '3.11'",
     "joblib",
     "flask",
     "figrecipe",

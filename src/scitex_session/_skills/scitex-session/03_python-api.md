@@ -25,7 +25,7 @@ def main(param1="default",
          CONFIG=sess.INJECTED,
          plt=sess.INJECTED,
          logger=sess.INJECTED,
-         rng=sess.INJECTED):
+         rngg=sess.INJECTED):
     return 0
 
 
@@ -41,6 +41,36 @@ Other parameters become CLI flags (`--param1`).
 > to the `sys` parameter; `sess.run(name=...)` raises `TypeError` from
 > `start()`). They are internal; see the advanced section below. The
 > decorator is what you want.
+
+## Provenance capture (automatic)
+
+Nothing to call. At session start the decorator opens the provenance
+record (via the session-start hooks a provenance observer such as
+scitex-clew subscribes to) **before** it loads `./config/*.yaml`, so every
+config file it reads goes through `scitex_io.load` and is recorded as a
+run **input**, exactly like a data file you `stx.io.load` yourself.
+
+The start hook also receives re-run metadata (`metadata=`), stored by
+clew on the run record and in `CONFIGS/CONFIG.yaml` as `_PROVENANCE`:
+
+| key | content |
+|---|---|
+| `argv`, `args` | raw `sys.argv` and the parsed CLI arguments |
+| `seed` | RNG seed of the session's `RandomStateManager` |
+| `cwd` | working directory (relative paths resolve against it) |
+| `git` | `root`, `commit`, `branch`, `dirty`, `dirty_paths` — or `{"repository": false}` |
+| `packages` | `{distribution: version}` for every imported package |
+| `local_modules` | `{path: sha256}` of imported modules inside the project |
+| `python` | interpreter version and executable |
+| `sdir_run`, `sdir_out` | this run's dir and the output base (`<script>_out/`) |
+| `started_at`, `notebook_path` | start time; notebook path for `.ipynb` |
+| `capture_errors` | `{field: error}` for anything that could not be captured |
+
+**Failures are never silent.** A raising hook (or an uncollectable field)
+does not break your run, but it is logged as a WARNING naming the hook,
+counted, summarised again at close, and recorded in
+`CONFIGS/CONFIG.yaml` under `_HOOK_FAILURES` — so an incomplete
+provenance record is always visible.
 
 ## `sess.INJECTED`
 

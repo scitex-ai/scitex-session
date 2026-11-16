@@ -7,11 +7,25 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from scitex_logging import getLogger
 
 logger = getLogger(__name__)
+
+
+def derive_sdir_out(sdir) -> Optional[Path]:
+    """Base output directory for a run directory ``<base>/RUNNING/<ID>/``.
+
+    Returns ``<base>`` (``SDIR_OUT``), or the parent when the run directory
+    has no ``RUNNING`` segment, or ``None`` when ``sdir`` is empty.
+    """
+    if not sdir:
+        return None
+    parts = Path(sdir).parts
+    if "RUNNING" in parts:
+        return Path(*parts[: parts.index("RUNNING")])
+    return Path(sdir).parent
 
 
 def setup_configs(
@@ -47,21 +61,13 @@ def setup_configs(
     dict
         Configuration dictionary
     """
-    # Calculate SDIR_OUT (base output directory)
-    # sdir format: /path/to/script_out/RUNNING/ID/
     sdir_path = Path(sdir) if sdir else None
-    if sdir_path:
-        # Remove /RUNNING/ID/ to get base output dir
-        parts = sdir_path.parts
-        if "RUNNING" in parts:
-            running_idx = parts.index("RUNNING")
-            sdir_out = Path(*parts[:running_idx])
-        else:
-            sdir_out = sdir_path.parent
-    else:
-        sdir_out = None
+    sdir_out = derive_sdir_out(sdir)
 
-    # Load YAML configs from ./config/*.yaml
+    # Load YAML configs from ./config/*.yaml. Each file is read through
+    # ``scitex_io.load``, whose post-load hook lets a provenance observer
+    # (clew) record it as a run INPUT — start() opens the provenance record
+    # before calling us precisely so these reads are captured.
     from scitex_io import load_configs
 
     CONFIGS = load_configs(IS_DEBUG).to_dict()
@@ -87,7 +93,7 @@ def save_configs(CONFIG) -> None:
     which would cause false "missing" errors since these files are saved
     in RUNNING/ but then moved to FINISHED_SUCCESS/.
     """
-    from scitex_io._save import save as scitex_io_save
+    from scitex_io import save as scitex_io_save
 
     # Convert to dict with all keys (including private ones) for saving
     config_dict = (

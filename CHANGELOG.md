@@ -7,6 +7,21 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-11-16
+
+First published release of the 0.3.3 changes below (the `v0.3.3` tag was
+cut but never reached PyPI; its release build could not be admitted to the
+SIF runner pool). No library code changes relative to 0.3.3.
+
+### Fixed
+
+- Release workflow: use the same runner-admission revision as the pinned
+  test matrix (fixed trusted-actor ID allowlist). The previous revision
+  depended on an unauthenticated GitHub API call from a hosted runner and,
+  when it failed, routed the build to `ubuntu-latest`, which has no
+  apptainer, so the verified-SIF build stopped (observed on both v0.3.3
+  publication attempts).
+
 ## [0.3.3] - 2026-11-16
 
 ### Added

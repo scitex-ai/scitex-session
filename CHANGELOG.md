@@ -7,6 +7,35 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Config files are recorded as run inputs.** The session-start hooks now fire
+  *before* `./config/*.yaml` is loaded, so every config file read through
+  `scitex_io.load` is recorded by a provenance observer (scitex-clew) as an
+  input of the run, like any data file.
+- **Re-run metadata on the start hook.** `metadata=` now carries `argv`, parsed
+  `args`, `seed`, `cwd`, `python`, `git` (commit/branch/dirty), imported
+  `packages` versions, `local_modules` sha256 hashes, `sdir_run`/`sdir_out`,
+  `started_at` and `capture_errors` for every session (previously only
+  `notebook_path`, only for notebooks). Also stored as `_PROVENANCE` in
+  `CONFIGS/CONFIG.yaml`.
+
+### Fixed
+
+- **Hook failures are no longer silent.** A raising start/close hook is still
+  isolated, but is logged as a WARNING, returned by the registry, summarised
+  at close and recorded as `_HOOK_FAILURES` in `CONFIGS/CONFIG.yaml`.
+- Start/close hooks fired twice per session (lifecycle + `SessionManager`); the
+  second start event carried no script path or metadata and overwrote the
+  observer's run record. `SessionManager.create_session/close_session` take
+  `fire_hooks=` and the lifecycle fires each event exactly once.
+- A config-loading error after the run record was opened now closes it as
+  `failed` instead of leaving it `running`.
+- `close()` dropped every private CONFIG key, so the tee'd log streams were
+  never closed; they now are.
+- README taught the deprecated `scitex.INJECTED`; now `scitex.session.INJECTED`
+  (and `rngg`, the actual injected name).
+
 ## [0.3.2] - 2026-11-12
 
 - Include the reviewed HTML reference in wheel and source distributions, and verify every bundled document against its source during release builds.

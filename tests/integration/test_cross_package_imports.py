@@ -29,7 +29,6 @@ CROSS_PACKAGE_IMPORTS = [
     "scitex_context",
     "scitex_io",
     "scitex_io._flush",
-    "scitex_io._save",
     "scitex_logging",
     "scitex_repro",
     "scitex_str",

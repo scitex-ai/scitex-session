@@ -8,17 +8,19 @@ from __future__ import annotations
 import inspect
 import logging
 import os as _os
-from scitex_logging import getLogger
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from scitex_dict import DotDict
+from scitex_logging import getLogger
 from scitex_repro import RandomStateManager
 from scitex_str import clean_path
 
+from .._hooks import _fire_session_close_hooks, _fire_session_start_hooks
 from .._manager import get_global_session_manager
-from ._config import setup_configs
+from ._config import derive_sdir_out, setup_configs
 from ._matplotlib import setup_matplotlib
+from ._provenance import collect_run_metadata
 from ._utils import (
     clear_python_log_dir,
     get_debug_mode,
@@ -277,8 +279,15 @@ def start(
 
                 nb_path = get_notebook_path()
                 caller_file = nb_path if nb_path else f"/tmp/{_os.getenv('USER')}.py"
-            except Exception:
+            except Exception as e:
                 caller_file = f"/tmp/{_os.getenv('USER')}.py"
+                logger.warning(
+                    "scitex-session: could not resolve the notebook path "
+                    "(%s: %s); recording the session under %s instead",
+                    type(e).__name__,
+                    e,
+                    caller_file,
+                )
 
         # Convert to absolute path if relative and resolve symlinks
         if not _os.path.isabs(caller_file):
@@ -300,22 +309,46 @@ def start(
     _os.makedirs(sdir, exist_ok=True)
     relative_sdir = simplify_relative_path(sdir)
 
-    # Setup configs - use caller_file (computed) instead of file (parameter)
-    CONFIGS = setup_configs(
-        IS_DEBUG, ID, PID, caller_file, sdir, relative_sdir, verbose
-    )
-
-    # Logging
+    # Logging (needs only ``sdir``; set up first so provenance warnings
+    # below land in the run's own logs).
     if sys is not None:
         from scitex_io._flush import flush
         from scitex_logging import tee
 
         flush(sys)
         sys.stdout, sys.stderr = tee(sys, sdir=sdir, verbose=verbose)
-        CONFIGS["_sys"] = sys
 
         # Redirect logging handlers to use the tee-wrapped streams
         _redirect_logging_handlers(sys)
+
+    # Open the provenance record BEFORE loading ./config/*.yaml: config files
+    # determine results, and they are read through ``scitex_io.load`` whose
+    # post-load hook records each one as a run INPUT — but only while an
+    # observer's run record is open.
+    metadata = collect_run_metadata(
+        caller_file,
+        args=args,
+        seed=seed,
+        sdir_run=sdir,
+        sdir_out=derive_sdir_out(sdir),
+    )
+    hook_failures = _start_verification(ID, caller_file, metadata)
+
+    # Setup configs - use caller_file (computed) instead of file (parameter)
+    try:
+        CONFIGS = setup_configs(
+            IS_DEBUG, ID, PID, caller_file, sdir, relative_sdir, verbose
+        )
+    except BaseException:
+        # The run record is open; close it as failed instead of leaving it
+        # dangling in "running" state, then let the config error propagate.
+        _fire_session_close_hooks(status="failed", exit_code=1)
+        raise
+
+    if sys is not None:
+        CONFIGS["_sys"] = sys
+    CONFIGS["_PROVENANCE"] = metadata
+    CONFIGS["_HOOK_FAILURES"] = hook_failures
 
     # Initialize RandomStateManager
     rng = RandomStateManager(seed=seed, verbose=verbose)
@@ -346,7 +379,8 @@ def start(
 
     # Register session
     session_manager = get_global_session_manager()
-    session_manager.create_session(ID, CONFIGS)
+    # Hooks already fired above (before config loading); do not re-fire.
+    session_manager.create_session(ID, CONFIGS, script_path=caller_file, fire_hooks=False)
 
     print_header(ID, PID, caller_file, args, CONFIGS, verbose)
 
@@ -355,9 +389,6 @@ def start(
 
         structure = analyze_code_flow(caller_file)
         _printc(structure)
-
-    # Start verification tracking
-    _start_verification(CONFIGS)
 
     # Return appropriate values based on whether sys was provided
     if sys is not None:
@@ -400,29 +431,20 @@ def _redirect_logging_handlers(sys) -> None:
         pass
 
 
-def _start_verification(CONFIG) -> None:
-    """Start verification tracking for this session.
+def _start_verification(
+    session_id: str, script_path: Optional[str], metadata: Dict[str, Any]
+) -> List[Dict[str, str]]:
+    """Fire the session-start hooks (e.g. clew lineage) with re-run metadata.
 
-    Dispatches to registered session-start hooks (e.g. clew lineage) via the
-    acyclic registry; session never imports the subscriber. See _hooks.py.
+    Dispatches via the acyclic registry; session never imports the
+    subscriber. See _hooks.py. Returns the failure records of any hook that
+    raised (each one already logged as a WARNING) — never swallowed.
     """
-    try:
-        from .._hooks import _fire_session_start_hooks
-
-        session_id = CONFIG.get("ID", "unknown")
-        file_path = CONFIG.get("FILE")
-        if file_path is not None:
-            file_path = str(file_path)
-
-        metadata = None
-        if file_path and file_path.endswith(".ipynb"):
-            metadata = {"notebook_path": file_path}
-
-        _fire_session_start_hooks(
-            session_id, script_path=file_path, metadata=metadata
-        )
-    except Exception:
-        pass
+    return _fire_session_start_hooks(
+        session_id,
+        script_path=str(script_path) if script_path is not None else None,
+        metadata=metadata,
+    )
 
 
 # EOF

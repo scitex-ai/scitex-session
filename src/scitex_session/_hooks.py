@@ -19,14 +19,17 @@ Contract (stable, do not change without coordinating with subscribers):
 - ``register_session_close_hook(fn)`` — ``fn`` is called at session close as
   ``fn(status, exit_code)`` (positional).
 
-Every hook is fired inside an isolated ``try/except Exception: pass`` — a
-misbehaving or absent subscriber can never break a session (the same
-silent-fail semantics the direct clew import had).
+Every hook is fired in isolation — a misbehaving subscriber can never break a
+session or block the hooks registered after it — but a failure is NEVER
+silent: it is logged as a WARNING naming the hook, and ``_fire_*`` returns one
+failure record per raising hook. The session stores those records in the
+run's own metadata (``CONFIG["_HOOK_FAILURES"]`` → ``CONFIGS/CONFIG.yaml``) and
+summarises them at close, so an incomplete provenance record is visible.
 """
 
 from __future__ import annotations
 
-from typing import Any, Callable, List
+from typing import Any, Callable, Dict, List
 
 # Module-level registries. Kept as plain lists so ordering is deterministic
 # (registration order) and membership checks stay simple.
@@ -73,24 +76,59 @@ def unregister_session_close_hook(fn: Callable[..., Any]) -> None:
         pass
 
 
+HookFailure = Dict[str, str]
+"""``{"phase": "start"|"close", "hook": <qualname>, "error": "Type: msg"}``."""
+
+
+def _record_failure(
+    phase: str, hook: Callable[..., Any], exc: Exception
+) -> HookFailure:
+    """Build the failure record for a raising hook and WARN about it."""
+    # Imported here, not at module scope: this module is imported eagerly by
+    # ``import scitex_session`` and must stay import-light.
+    from scitex_logging import getLogger
+
+    logger = getLogger(__name__)
+    name = getattr(hook, "__qualname__", None) or repr(hook)
+    failure = {"phase": phase, "hook": name, "error": f"{type(exc).__name__}: {exc}"}
+    logger.warning(
+        "scitex-session: session-%s hook %s failed (%s) — provenance for this "
+        "session may be incomplete",
+        phase,
+        name,
+        failure["error"],
+    )
+    return failure
+
+
 def _fire_session_start_hooks(
     session_id: Any, script_path: Any = None, metadata: Any = None
-) -> None:
-    """Fire all registered start hooks (isolated silent-fail per hook)."""
+) -> List[HookFailure]:
+    """Fire all registered start hooks; return one record per failed hook.
+
+    A raising hook does not prevent later hooks from running, but its failure
+    is logged as a WARNING and returned so the session can record it.
+    """
+    failures: List[HookFailure] = []
     for hook in list(_SESSION_START_HOOKS):
         try:
             hook(session_id, script_path, metadata)
-        except Exception:
-            pass
+        except Exception as exc:  # noqa: BLE001 - recorded + warned, not swallowed
+            failures.append(_record_failure("start", hook, exc))
+    return failures
 
 
-def _fire_session_close_hooks(status: Any = "success", exit_code: Any = 0) -> None:
-    """Fire all registered close hooks (isolated silent-fail per hook)."""
+def _fire_session_close_hooks(
+    status: Any = "success", exit_code: Any = 0
+) -> List[HookFailure]:
+    """Fire all registered close hooks; return one record per failed hook."""
+    failures: List[HookFailure] = []
     for hook in list(_SESSION_CLOSE_HOOKS):
         try:
             hook(status, exit_code)
-        except Exception:
-            pass
+        except Exception as exc:  # noqa: BLE001 - recorded + warned, not swallowed
+            failures.append(_record_failure("close", hook, exc))
+    return failures
 
 
 # EOF

@@ -19,10 +19,10 @@ import scitex
 
 @scitex.session
 def main(
-    CONFIG=scitex.INJECTED,
-    plt=scitex.INJECTED,
-    COLORS=scitex.INJECTED,
-    rngg=scitex.INJECTED,
+    CONFIG=scitex.session.INJECTED,
+    plt=scitex.session.INJECTED,
+    COLORS=scitex.session.INJECTED,
+    rngg=scitex.session.INJECTED,
 ):
     """Args injected by @scitex.session decorator"""
     print(f"Session ID: {CONFIG['ID']}")
@@ -43,10 +43,10 @@ import scitex
 
 @scitex.session
 def main(
-    CONFIG=scitex.INJECTED,
-    plt=scitex.INJECTED,
-    COLORS=scitex.INJECTED,
-    rngg=scitex.INJECTED,
+    CONFIG=scitex.session.INJECTED,
+    plt=scitex.session.INJECTED,
+    COLORS=scitex.session.INJECTED,
+    rngg=scitex.session.INJECTED,
 ):
     """Args injected by @scitex.session decorator"""
     print(f"Session ID: {CONFIG['ID']}")
@@ -59,9 +59,9 @@ The decorator automatically injects the following parameters:
 - `CONFIG`: Configuration dictionary with session metadata
 - `plt`: Configured matplotlib.pyplot module
 - `COLORS`: Color cycle dictionary
-- `rng`: RandomStateManager instance
+- `rngg`: RandomStateManager instance
 
-Using `scitex.INJECTED` as default values makes it explicit that these parameters are injected by the decorator.
+Using `scitex.session.INJECTED` as default values makes it explicit that these parameters are injected by the decorator.
 
 Decorator Parameters:
 - file: Script file path (auto-detected if None)

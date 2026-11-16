@@ -7,6 +7,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-11-16
+
 ### Added
 
 - **Config files are recorded as run inputs.** The session-start hooks now fire

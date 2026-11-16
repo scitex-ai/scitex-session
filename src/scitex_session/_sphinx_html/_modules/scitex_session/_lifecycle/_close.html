@@ -5,7 +5,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>scitex_session._lifecycle._close &mdash; scitex-session 0.3.2 documentation</title>
+  <title>scitex_session._lifecycle._close &mdash; scitex-session 0.3.3 documentation</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
       <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
@@ -14,7 +14,7 @@
   
       <script src="../../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="../../../_static/documentation_options.js?v=71d9d8e6"></script>
+      <script src="../../../_static/documentation_options.js?v=d5a15cff"></script>
       <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -85,8 +85,9 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">shutil</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">glob</span><span class="w"> </span><span class="kn">import</span> <span class="n">glob</span> <span class="k">as</span> <span class="n">_glob</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">scitex_logging</span><span class="w"> </span><span class="kn">import</span> <span class="n">getLogger</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">scitex_logging</span><span class="w"> </span><span class="kn">import</span> <span class="n">getLogger</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">scitex_utils_notify</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -249,12 +250,29 @@
 <span class="sd">        copytree-only behavior bit-for-bit.</span>
 <span class="sd">    """</span>
     <span class="c1"># Stop verification tracking first</span>
-    <span class="n">_stop_verification</span><span class="p">(</span><span class="n">exit_status</span><span class="p">)</span>
+    <span class="n">close_failures</span> <span class="o">=</span> <span class="n">_stop_verification</span><span class="p">(</span><span class="n">exit_status</span><span class="p">)</span>
 
     <span class="n">sys</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="k">try</span><span class="p">:</span>
+        <span class="n">hook_failures</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">CONFIG</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"_HOOK_FAILURES"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[])</span> <span class="o">+</span> <span class="n">close_failures</span>
+        <span class="n">CONFIG</span><span class="p">[</span><span class="s2">"_HOOK_FAILURES"</span><span class="p">]</span> <span class="o">=</span> <span class="n">hook_failures</span>
+        <span class="k">if</span> <span class="n">hook_failures</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s2">"scitex-session: </span><span class="si">%d</span><span class="s2"> provenance hook failure(s) in session </span><span class="si">%s</span><span class="s2"> — "</span>
+                <span class="s2">"its provenance record is INCOMPLETE; details in "</span>
+                <span class="s2">"CONFIGS/CONFIG.yaml (_HOOK_FAILURES): </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
+                <span class="nb">len</span><span class="p">(</span><span class="n">hook_failures</span><span class="p">),</span>
+                <span class="n">CONFIG</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"ID"</span><span class="p">),</span>
+                <span class="s2">"; "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">f</span><span class="p">[</span><span class="s1">'phase'</span><span class="p">]</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">f</span><span class="p">[</span><span class="s1">'hook'</span><span class="p">]</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">f</span><span class="p">[</span><span class="s1">'error'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">hook_failures</span>
+                <span class="p">),</span>
+            <span class="p">)</span>
         <span class="n">CONFIG</span><span class="o">.</span><span class="n">EXIT_STATUS</span> <span class="o">=</span> <span class="n">exit_status</span>
-        <span class="n">CONFIG</span> <span class="o">=</span> <span class="n">CONFIG</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+        <span class="c1"># include_private: keep ``_PROVENANCE`` / ``_HOOK_FAILURES`` for</span>
+        <span class="c1"># CONFIGS/CONFIG.yaml, and ``_sys`` so the tee'd log streams are</span>
+        <span class="c1"># actually closed below (a plain to_dict() dropped every ``_`` key,</span>
+        <span class="c1"># so ``pop("_sys")`` always returned None and the logs leaked).</span>
+        <span class="n">CONFIG</span> <span class="o">=</span> <span class="n">CONFIG</span><span class="o">.</span><span class="n">to_dict</span><span class="p">(</span><span class="n">include_private</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="n">CONFIG</span> <span class="o">=</span> <span class="n">process_timestamp</span><span class="p">(</span><span class="n">CONFIG</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
         <span class="n">sys</span> <span class="o">=</span> <span class="n">CONFIG</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">"_sys"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
 
@@ -308,7 +326,7 @@
 
         <span class="c1"># Close session</span>
         <span class="n">session_manager</span> <span class="o">=</span> <span class="n">get_global_session_manager</span><span class="p">()</span>
-        <span class="n">session_manager</span><span class="o">.</span><span class="n">close_session</span><span class="p">(</span><span class="n">CONFIG</span><span class="p">[</span><span class="s2">"ID"</span><span class="p">])</span>
+        <span class="n">session_manager</span><span class="o">.</span><span class="n">close_session</span><span class="p">(</span><span class="n">CONFIG</span><span class="p">[</span><span class="s2">"ID"</span><span class="p">],</span> <span class="n">exit_code</span><span class="o">=</span><span class="n">exit_status</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">,</span> <span class="n">fire_hooks</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
     <span class="k">finally</span><span class="p">:</span>
         <span class="c1"># Only close if they're custom file objects (Tee objects)</span>
@@ -369,19 +387,17 @@
         <span class="k">pass</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_stop_verification</span><span class="p">(</span><span class="n">exit_status</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Stop verification tracking for this session.</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_stop_verification</span><span class="p">(</span><span class="n">exit_status</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Fire the session-close hooks (e.g. clew lineage).</span>
 
-<span class="sd">    Dispatches to registered session-close hooks (e.g. clew lineage) via the</span>
-<span class="sd">    acyclic registry; session never imports the subscriber. See _hooks.py.</span>
+<span class="sd">    Dispatches via the acyclic registry; session never imports the</span>
+<span class="sd">    subscriber. See _hooks.py. Returns the failure records of any hook that</span>
+<span class="sd">    raised (each one already logged as a WARNING) — never swallowed.</span>
 <span class="sd">    """</span>
-    <span class="k">try</span><span class="p">:</span>
-        <span class="kn">from</span><span class="w"> </span><span class="nn">.._hooks</span><span class="w"> </span><span class="kn">import</span> <span class="n">_fire_session_close_hooks</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.._hooks</span><span class="w"> </span><span class="kn">import</span> <span class="n">_fire_session_close_hooks</span>
 
-        <span class="n">status</span> <span class="o">=</span> <span class="s2">"success"</span> <span class="k">if</span> <span class="n">exit_status</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="s2">"failed"</span>
-        <span class="n">_fire_session_close_hooks</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="n">status</span><span class="p">,</span> <span class="n">exit_code</span><span class="o">=</span><span class="n">exit_status</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span>
-    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-        <span class="k">pass</span>
+    <span class="n">status</span> <span class="o">=</span> <span class="s2">"success"</span> <span class="k">if</span> <span class="n">exit_status</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="s2">"failed"</span>
+    <span class="k">return</span> <span class="n">_fire_session_close_hooks</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="n">status</span><span class="p">,</span> <span class="n">exit_code</span><span class="o">=</span><span class="n">exit_status</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span>
 
 
 <span class="c1"># EOF</span>

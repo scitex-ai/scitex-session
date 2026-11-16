@@ -5,7 +5,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>scitex_session._hooks &mdash; scitex-session 0.3.2 documentation</title>
+  <title>scitex_session._hooks &mdash; scitex-session 0.3.3 documentation</title>
       <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
       <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
@@ -14,7 +14,7 @@
   
       <script src="../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="../../_static/documentation_options.js?v=71d9d8e6"></script>
+      <script src="../../_static/documentation_options.js?v=d5a15cff"></script>
       <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -94,14 +94,17 @@
 <span class="sd">- ``register_session_close_hook(fn)`` — ``fn`` is called at session close as</span>
 <span class="sd">  ``fn(status, exit_code)`` (positional).</span>
 
-<span class="sd">Every hook is fired inside an isolated ``try/except Exception: pass`` — a</span>
-<span class="sd">misbehaving or absent subscriber can never break a session (the same</span>
-<span class="sd">silent-fail semantics the direct clew import had).</span>
+<span class="sd">Every hook is fired in isolation — a misbehaving subscriber can never break a</span>
+<span class="sd">session or block the hooks registered after it — but a failure is NEVER</span>
+<span class="sd">silent: it is logged as a WARNING naming the hook, and ``_fire_*`` returns one</span>
+<span class="sd">failure record per raising hook. The session stores those records in the</span>
+<span class="sd">run's own metadata (``CONFIG["_HOOK_FAILURES"]`` → ``CONFIGS/CONFIG.yaml``) and</span>
+<span class="sd">summarises them at close, so an incomplete provenance record is visible.</span>
 <span class="sd">"""</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">List</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span>
 
 <span class="c1"># Module-level registries. Kept as plain lists so ordering is deterministic</span>
 <span class="c1"># (registration order) and membership checks stay simple.</span>
@@ -160,24 +163,59 @@
 
 
 
+<span class="n">HookFailure</span> <span class="o">=</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span>
+<span class="sd">"""``{"phase": "start"|"close", "hook": &lt;qualname&gt;, "error": "Type: msg"}``."""</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_record_failure</span><span class="p">(</span>
+    <span class="n">phase</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">hook</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">exc</span><span class="p">:</span> <span class="ne">Exception</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">HookFailure</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Build the failure record for a raising hook and WARN about it."""</span>
+    <span class="c1"># Imported here, not at module scope: this module is imported eagerly by</span>
+    <span class="c1"># ``import scitex_session`` and must stay import-light.</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">scitex_logging</span><span class="w"> </span><span class="kn">import</span> <span class="n">getLogger</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">hook</span><span class="p">,</span> <span class="s2">"__qualname__"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">repr</span><span class="p">(</span><span class="n">hook</span><span class="p">)</span>
+    <span class="n">failure</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"phase"</span><span class="p">:</span> <span class="n">phase</span><span class="p">,</span> <span class="s2">"hook"</span><span class="p">:</span> <span class="n">name</span><span class="p">,</span> <span class="s2">"error"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">exc</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span><span class="p">}</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+        <span class="s2">"scitex-session: session-</span><span class="si">%s</span><span class="s2"> hook </span><span class="si">%s</span><span class="s2"> failed (</span><span class="si">%s</span><span class="s2">) — provenance for this "</span>
+        <span class="s2">"session may be incomplete"</span><span class="p">,</span>
+        <span class="n">phase</span><span class="p">,</span>
+        <span class="n">name</span><span class="p">,</span>
+        <span class="n">failure</span><span class="p">[</span><span class="s2">"error"</span><span class="p">],</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">failure</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_fire_session_start_hooks</span><span class="p">(</span>
     <span class="n">session_id</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">script_path</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">metadata</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Fire all registered start hooks (isolated silent-fail per hook)."""</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">HookFailure</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Fire all registered start hooks; return one record per failed hook.</span>
+
+<span class="sd">    A raising hook does not prevent later hooks from running, but its failure</span>
+<span class="sd">    is logged as a WARNING and returned so the session can record it.</span>
+<span class="sd">    """</span>
+    <span class="n">failures</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">HookFailure</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">hook</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">_SESSION_START_HOOKS</span><span class="p">):</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">hook</span><span class="p">(</span><span class="n">session_id</span><span class="p">,</span> <span class="n">script_path</span><span class="p">,</span> <span class="n">metadata</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-            <span class="k">pass</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>  <span class="c1"># noqa: BLE001 - recorded + warned, not swallowed</span>
+            <span class="n">failures</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_record_failure</span><span class="p">(</span><span class="s2">"start"</span><span class="p">,</span> <span class="n">hook</span><span class="p">,</span> <span class="n">exc</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">failures</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_fire_session_close_hooks</span><span class="p">(</span><span class="n">status</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="s2">"success"</span><span class="p">,</span> <span class="n">exit_code</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Fire all registered close hooks (isolated silent-fail per hook)."""</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_fire_session_close_hooks</span><span class="p">(</span>
+    <span class="n">status</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="s2">"success"</span><span class="p">,</span> <span class="n">exit_code</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">HookFailure</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Fire all registered close hooks; return one record per failed hook."""</span>
+    <span class="n">failures</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">HookFailure</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">hook</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">_SESSION_CLOSE_HOOKS</span><span class="p">):</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">hook</span><span class="p">(</span><span class="n">status</span><span class="p">,</span> <span class="n">exit_code</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-            <span class="k">pass</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>  <span class="c1"># noqa: BLE001 - recorded + warned, not swallowed</span>
+            <span class="n">failures</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_record_failure</span><span class="p">(</span><span class="s2">"close"</span><span class="p">,</span> <span class="n">hook</span><span class="p">,</span> <span class="n">exc</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">failures</span>
 
 
 <span class="c1"># EOF</span>

@@ -24,8 +24,12 @@ env:
   RUN_E2E: "1"
 
 jobs:
+  # Same admission revision as the pinned pytest-matrix below: a fixed
+  # trusted-actor ID allowlist. The earlier revision asked the unauthenticated
+  # public-members API from a hosted runner and fell back to ubuntu-latest
+  # (no apptainer) whenever that call failed, so build could never reach the SIF.
   runner-admission:
-    uses: scitex-ai/.github/.github/workflows/runner-admission.yml@d7d96c34d68cdfbb5503a933591f7748b5aa30ee
+    uses: scitex-ai/.github/.github/workflows/runner-admission.yml@103726f97249dcb1bf9c37ad235dec991a0399f9
     permissions: {}
     with:
       runs_on: '["self-hosted","Linux","X64","scitex-org-cpu"]'

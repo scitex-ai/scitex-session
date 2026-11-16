@@ -13,7 +13,7 @@ __DIR__ = os.path.dirname(__FILE__)
 """Session manager for tracking active experiment sessions."""
 
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from ._hooks import _fire_session_close_hooks, _fire_session_start_hooks
 
@@ -29,7 +29,8 @@ class SessionManager:
         session_id: str,
         config: Dict[str, Any],
         script_path: str = None,
-    ) -> None:
+        fire_hooks: bool = True,
+    ) -> List[Dict[str, str]]:
         """Register a new session.
 
         Parameters
@@ -40,6 +41,16 @@ class SessionManager:
             Session configuration dictionary
         script_path : str, optional
             Path to the script being run
+        fire_hooks : bool, default True
+            Fire the session-start hooks. The ``@session`` lifecycle passes
+            ``False`` because it fires them itself (earlier, with re-run
+            metadata); firing twice re-opened the observer's run record
+            without its script path or metadata.
+
+        Returns
+        -------
+        list of dict
+            Failure records of start hooks that raised (each also warned).
         """
         self.active_sessions[session_id] = {
             "config": config,
@@ -49,16 +60,19 @@ class SessionManager:
         }
 
         # Notify lifecycle subscribers of session start (e.g. clew lineage).
-        # session never imports the subscriber; per-hook silent-fail lives in
-        # the registry. See _hooks.py.
-        _fire_session_start_hooks(session_id, script_path=script_path)
+        # session never imports the subscriber; failures are warned and
+        # returned by the registry. See _hooks.py.
+        if not fire_hooks:
+            return []
+        return _fire_session_start_hooks(session_id, script_path=script_path)
 
     def close_session(
         self,
         session_id: str,
         status: str = "success",
         exit_code: int = 0,
-    ) -> None:
+        fire_hooks: bool = True,
+    ) -> List[Dict[str, str]]:
         """Mark a session as closed.
 
         Parameters
@@ -69,6 +83,14 @@ class SessionManager:
             Final status (success, failed, error)
         exit_code : int, optional
             Exit code of the session
+        fire_hooks : bool, default True
+            Fire the session-close hooks (the lifecycle passes ``False``; it
+            fires them itself with the real exit status).
+
+        Returns
+        -------
+        list of dict
+            Failure records of close hooks that raised (each also warned).
         """
         if session_id in self.active_sessions:
             self.active_sessions[session_id]["status"] = "closed"
@@ -76,7 +98,9 @@ class SessionManager:
             self.active_sessions[session_id]["exit_code"] = exit_code
 
         # Notify lifecycle subscribers of session close (e.g. clew lineage).
-        _fire_session_close_hooks(status=status, exit_code=exit_code)
+        if not fire_hooks:
+            return []
+        return _fire_session_close_hooks(status=status, exit_code=exit_code)
 
     def get_active_sessions(self) -> Dict[str, Any]:
         """Get all active sessions.

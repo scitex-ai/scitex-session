@@ -10,8 +10,9 @@ import os as _os
 import shutil
 import time
 from glob import glob as _glob
-from scitex_logging import getLogger
 from pathlib import Path
+
+from scitex_logging import getLogger
 
 
 def scitex_utils_notify(*args, **kwargs):
@@ -169,12 +170,29 @@ def close(
         copytree-only behavior bit-for-bit.
     """
     # Stop verification tracking first
-    _stop_verification(exit_status)
+    close_failures = _stop_verification(exit_status)
 
     sys = None
     try:
+        hook_failures = list(CONFIG.get("_HOOK_FAILURES") or []) + close_failures
+        CONFIG["_HOOK_FAILURES"] = hook_failures
+        if hook_failures:
+            logger.warning(
+                "scitex-session: %d provenance hook failure(s) in session %s — "
+                "its provenance record is INCOMPLETE; details in "
+                "CONFIGS/CONFIG.yaml (_HOOK_FAILURES): %s",
+                len(hook_failures),
+                CONFIG.get("ID"),
+                "; ".join(
+                    f"{f['phase']}:{f['hook']}: {f['error']}" for f in hook_failures
+                ),
+            )
         CONFIG.EXIT_STATUS = exit_status
-        CONFIG = CONFIG.to_dict()
+        # include_private: keep ``_PROVENANCE`` / ``_HOOK_FAILURES`` for
+        # CONFIGS/CONFIG.yaml, and ``_sys`` so the tee'd log streams are
+        # actually closed below (a plain to_dict() dropped every ``_`` key,
+        # so ``pop("_sys")`` always returned None and the logs leaked).
+        CONFIG = CONFIG.to_dict(include_private=True)
         CONFIG = process_timestamp(CONFIG, verbose=verbose)
         sys = CONFIG.pop("_sys", None)
 
@@ -228,7 +246,7 @@ def close(
 
         # Close session
         session_manager = get_global_session_manager()
-        session_manager.close_session(CONFIG["ID"])
+        session_manager.close_session(CONFIG["ID"], exit_code=exit_status or 0, fire_hooks=False)
 
     finally:
         # Only close if they're custom file objects (Tee objects)
@@ -288,19 +306,17 @@ def _close_streams(sys) -> None:
         pass
 
 
-def _stop_verification(exit_status: int) -> None:
-    """Stop verification tracking for this session.
+def _stop_verification(exit_status: int) -> list:
+    """Fire the session-close hooks (e.g. clew lineage).
 
-    Dispatches to registered session-close hooks (e.g. clew lineage) via the
-    acyclic registry; session never imports the subscriber. See _hooks.py.
+    Dispatches via the acyclic registry; session never imports the
+    subscriber. See _hooks.py. Returns the failure records of any hook that
+    raised (each one already logged as a WARNING) — never swallowed.
     """
-    try:
-        from .._hooks import _fire_session_close_hooks
+    from .._hooks import _fire_session_close_hooks
 
-        status = "success" if exit_status == 0 else "failed"
-        _fire_session_close_hooks(status=status, exit_code=exit_status or 0)
-    except Exception:
-        pass
+    status = "success" if exit_status == 0 else "failed"
+    return _fire_session_close_hooks(status=status, exit_code=exit_status or 0)
 
 
 # EOF

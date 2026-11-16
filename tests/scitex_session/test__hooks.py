@@ -144,9 +144,7 @@ class TestFireSessionStartHooks:
             )
         )
         # Act
-        _hooks._fire_session_start_hooks(
-            "sid-1", script_path="a.py", metadata={"k": 1}
-        )
+        _hooks._fire_session_start_hooks("sid-1", script_path="a.py", metadata={"k": 1})
         # Assert
         assert received == [("sid-1", "a.py", {"k": 1})]
 
@@ -248,6 +246,68 @@ class TestFireSessionCloseHooks:
         _hooks._fire_session_close_hooks(status="success", exit_code=0)
         # Assert
         assert received == ["success"]
+
+
+class TestHookFailuresAreSurfaced:
+    """A raising subscriber is isolated but NEVER silent (no silent fallbacks).
+
+    ``_fire_*`` returns one failure record per raising hook so the session can
+    count it, warn about it, and record it in the run's own metadata.
+    """
+
+    def test_start_fire_returns_empty_list_when_all_hooks_succeed(self):
+        # Arrange
+        _hooks.register_session_start_hook(lambda sid, path, meta: None)
+        # Act
+        failures = _hooks._fire_session_start_hooks("sid-ok")
+        # Assert
+        assert failures == []
+
+    def test_start_fire_returns_one_record_per_raising_hook(self):
+        # Arrange
+        def broken_start_hook(session_id, script_path, metadata):
+            raise RuntimeError("store unreachable")
+
+        _hooks.register_session_start_hook(broken_start_hook)
+        # Act
+        failures = _hooks._fire_session_start_hooks("sid-bad")
+        # Assert
+        assert failures == [
+            {
+                "phase": "start",
+                "hook": broken_start_hook.__qualname__,
+                "error": "RuntimeError: store unreachable",
+            }
+        ]
+
+    def test_close_fire_returns_one_record_per_raising_hook(self):
+        # Arrange
+        def broken_close_hook(status, exit_code):
+            raise ValueError("cannot finalize")
+
+        _hooks.register_session_close_hook(broken_close_hook)
+        # Act
+        failures = _hooks._fire_session_close_hooks("success", 0)
+        # Assert
+        assert failures == [
+            {
+                "phase": "close",
+                "hook": broken_close_hook.__qualname__,
+                "error": "ValueError: cannot finalize",
+            }
+        ]
+
+    def test_raising_hook_emits_a_warning_naming_the_hook(self, caplog):
+        # Arrange
+        def loud_failing_hook(status, exit_code):
+            raise RuntimeError("boom")
+
+        _hooks.register_session_close_hook(loud_failing_hook)
+        # Act
+        with caplog.at_level("WARNING"):
+            _hooks._fire_session_close_hooks("success", 0)
+        # Assert
+        assert "loud_failing_hook" in caplog.text
 
 
 class TestPublicApiExposure:

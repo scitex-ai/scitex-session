@@ -7,6 +7,12 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.7] - 2026-11-18
+
+No scitex-clew change is required: clew's capture already takes `project_root`
+from the start metadata. Aligning clew's own project-scope walk is a clew-side
+follow-up (see #72).
+
 ### Fixed
 
 - **Project root no longer collapses to `scripts/` outside git (#71).** For a

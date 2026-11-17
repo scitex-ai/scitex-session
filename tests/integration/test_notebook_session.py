@@ -139,12 +139,19 @@ def _env(**extra):
 
 
 def _outputs(executed: dict) -> str:
+    """The cells' STDOUT text, plus one ``ERROR ...`` line per failed cell.
+
+    stdout and stderr arrive as separate stream outputs whose chunks need not
+    end at a newline: concatenating both put a stderr ``WARN:`` in the middle
+    of a ``START=`` JSON line (CI flake). The observers print to stdout.
+    """
     text = []
     for cell in executed["cells"]:
         for out in cell.get("outputs", []):
             if out.get("output_type") == "error":
-                text.append(f"ERROR {out.get('ename')}: {out.get('evalue')}\n")
-            text.append("".join(out.get("text", "")))
+                text.append(f"\nERROR {out.get('ename')}: {out.get('evalue')}\n")
+            elif out.get("output_type") == "stream" and out.get("name") == "stdout":
+                text.append("".join(out.get("text", "")))
     return "".join(text)
 
 

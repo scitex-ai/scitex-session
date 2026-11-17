@@ -7,6 +7,13 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-18
+
+Minor release: a `@session` inside a Jupyter kernel works and records its
+notebook (#77, PR #78). New provenance metadata fields (`entry.*` for
+notebooks, `io_provenance`) that scitex-clew >= 0.26.0 reads; `script_path`
+of a kernel session is now the notebook; requires `scitex-io>=0.5.0`.
+
 ### Fixed
 
 - **`@session` works inside a Jupyter kernel (#77).** Three stacked problems:

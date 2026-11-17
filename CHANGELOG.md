@@ -7,6 +7,13 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Tests
+- Project-root conformance vectors: `tests/scitex_session/conformance/project-root-vectors.json`
+  (byte-identical to scitex-clew's `tests/scitex_clew/conformance/` copy, which runs the same table against its
+  standalone resolver) is run end to end through `collect_run_metadata`. A
+  change to the detection rule must update both implementations and the file
+  in both repositories. No code change; no release needed.
+
 ## [0.3.7] - 2026-11-18
 
 No scitex-clew change is required: clew's capture already takes `project_root`

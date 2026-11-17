@@ -28,6 +28,13 @@ is recorded as ``entry["path_source"]``):
 ``jupyter-server`` ``scitex_context.get_notebook_path()`` (asks a running
                    Jupyter server which notebook owns this kernel)
 
+KEEP IN SYNC: scitex-io routes a notebook's relative ``save()`` to
+``<notebook>_out/`` with the same rule (``scitex_io._notebook.
+resolve_notebook``). Both repositories run the byte-identical
+``tests/**/conformance/notebook-path-vectors.json`` (and its runner); a change
+to this rule must update BOTH implementations and those files IN BOTH
+REPOSITORIES in the same change.
+
 When nothing resolves, the run is recorded as script-less (like
 ``python -c``) with the reason, and a WARNING says how to name the notebook —
 never as the kernel's temporary cell file.

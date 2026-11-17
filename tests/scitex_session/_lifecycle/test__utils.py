@@ -1319,6 +1319,23 @@ class TestSessionFigureSave:
         assert has_set_xyt is True
 
 
+def test_session_ids_do_not_depend_on_the_seeded_global_random():
+    """A session seeds ``random`` (seed=42); the NEXT session in the same
+    process (a notebook kernel) must still get a fresh id (#77)."""
+    # Arrange
+    import random
+
+    from scitex_session._lifecycle._utils import initialize_env
+
+    random.seed(42)
+    first = initialize_env(False)[0]
+    random.seed(42)
+    # Act
+    second = initialize_env(False)[0]
+    # Assert
+    assert first.split("_")[-1] != second.split("_")[-1]
+
+
 if __name__ == "__main__":
     import os
 

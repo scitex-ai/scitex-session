@@ -6,13 +6,14 @@
 from __future__ import annotations
 
 import os as _os
+import random as _random
 import re
+import string as _string
 from datetime import datetime
 from scitex_logging import getLogger
 from time import sleep
 from typing import Any, Dict, Tuple
 
-from scitex_repro import gen_ID
 from scitex_str import printc as _printc
 
 logger = getLogger(__name__)
@@ -65,9 +66,23 @@ def initialize_env(IS_DEBUG: bool) -> Tuple[str, int]:
     tuple
         (ID, PID) - Unique identifier and Process ID
     """
-    ID = gen_ID(N=4) if not IS_DEBUG else "DEBUG_" + gen_ID(N=4)
+    ID = gen_session_id(N=4) if not IS_DEBUG else "DEBUG_" + gen_session_id(N=4)
     PID = _os.getpid()
     return ID, PID
+
+
+#: The OS entropy source: session ids must not depend on the global
+#: ``random`` state, which every session seeds (``seed=42``) — a second
+#: session in the same process (a notebook kernel) drew the same suffix and,
+#: within the same second, the same id as the first.
+_ID_RNG = _random.SystemRandom()
+_ID_ALPHABET = _string.ascii_letters + _string.digits
+
+
+def gen_session_id(N: int = 4, time_format: str = "%YY-%mM-%dD-%Hh%Mm%Ss") -> str:
+    """``<timestamp>_<N random chars>`` (same shape as ``scitex_repro.gen_ID``)."""
+    now = datetime.now().strftime(time_format)
+    return now + "_" + "".join(_ID_RNG.choice(_ID_ALPHABET) for _ in range(N))
 
 
 def simplify_relative_path(sdir: str) -> str:

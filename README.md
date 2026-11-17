@@ -118,6 +118,19 @@ def main(
     return 0
 ```
 
+## Project root
+
+Each run records `project_root` with the rule that chose it
+(`project_root_source`: `argument` > `env` (`$SCITEX_SESSION_PROJECT_ROOT`) >
+`git` > `marker` > `cwd` > `script_dir`), see
+`scitex_session/_lifecycle/_project_root.py`. scitex-clew adopts this root for
+the run and re-implements the same rule for standalone use.
+
+**Conformance:** `tests/scitex_session/conformance/project-root-vectors.json` is
+byte-identical to scitex-clew's `tests/scitex_clew/conformance/project-root-vectors.json`, and both suites run their
+resolver against it. A change to the rule must update both implementations and
+the vector file in **both** repositories.
+
 ## Status
 
 Standalone fork of `scitex.session`. Deps: matplotlib + scitex-dict /

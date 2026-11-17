@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scitex-session"
-version = "0.3.7"
+version = "0.4.0"
 description = "@session decorator + lifecycle (auto-CLI, output dir tree, RandomStateManager) — standalone module from the SciTeX ecosystem"
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -32,7 +32,8 @@ dependencies = [
     "scitex-dev>=0.62.28",
     "scitex-repro>=0.1.0",
     "scitex-str>=0.1.0",
-    "scitex-io>=0.4.2",
+    # >=0.5.0: ``scitex_io.provenance_scope`` (the session opens one per run)
+    "scitex-io>=0.5.0",
     # _lifecycle/_start.py resolves the notebook path via
     # ``from scitex_context import get_notebook_path``.
     "scitex-context>=0.1.4",
@@ -56,6 +57,12 @@ dev = [
     # also stays green without this, but listing it here means
     # `pip install -e .[dev]` exercises the MCP surface in CI.
     "fastmcp>=2.0",
+    # tests/integration/test_notebook_session.py executes real notebooks
+    # in real kernels (headless nbconvert / nbclient)
+    "ipykernel",
+    "nbclient",
+    "nbconvert",
+    "nbformat",
 ]
 docs = [
     "sphinx>=7.0",

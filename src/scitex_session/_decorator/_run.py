@@ -51,12 +51,16 @@ def _run_with_session(
     # user's ``<script>_out/``. ``_find_user_caller_file`` shares the
     # same outward-walk used inside :func:`start`, so both paths land on
     # exactly the same user-script filename.
-    from .._lifecycle._start import _find_user_caller_file
+    # Inside a Jupyter kernel / IPython the caller is usually a CELL (no
+    # file): ``caller_file`` is then None and start() resolves the notebook,
+    # and ``sys.argv`` is the kernel's own command line, never parsed as the
+    # function's CLI (see ``_cli_argv``).
+    from .._lifecycle._start import _cli_argv, _find_user_caller
 
-    caller_file = _find_user_caller_file()
+    caller_file, invocation = _find_user_caller()
 
     parser = _create_parser(func)
-    args = parser.parse_args()
+    args = parser.parse_args(_cli_argv(invocation))
 
     # Clean up INJECTED sentinels from args before passing to session.
     cleaned_args = argparse.Namespace(
@@ -229,18 +233,18 @@ def run(
         if __name__ == '__main__':
             stx.session.run(main)
     """
-    if parse_args is None:
-        parser = _create_parser(func)
-        args = parser.parse_args()
-    else:
-        args = parse_args()
-
     # See _run_with_session above for the rationale on walking outward
     # past scitex_session / scitex_dev wrapper frames instead of
-    # blindly using ``frame.f_back``.
-    from .._lifecycle._start import _find_user_caller_file
+    # blindly using ``frame.f_back`` (and for the IPython cell case).
+    from .._lifecycle._start import _cli_argv, _find_user_caller
 
-    caller_file = _find_user_caller_file()
+    caller_file, invocation = _find_user_caller()
+
+    if parse_args is None:
+        parser = _create_parser(func)
+        args = parser.parse_args(_cli_argv(invocation))
+    else:
+        args = parse_args()
 
     import matplotlib.pyplot as plt
 

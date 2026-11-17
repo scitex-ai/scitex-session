@@ -7,6 +7,77 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-18
+
+Minor release: a `@session` inside a Jupyter kernel works and records its
+notebook (#77, PR #78). New provenance metadata fields (`entry.*` for
+notebooks, `io_provenance`) that scitex-clew >= 0.26.0 reads; `script_path`
+of a kernel session is now the notebook; requires `scitex-io>=0.5.0`.
+
+### Fixed
+
+- **`@session` works inside a Jupyter kernel (#77).** Three stacked problems:
+  1. *Kernel argv parsed as the CLI.* A decorated `main()` called in a cell
+     exited with `SystemExit: 2` on the kernel's `-f <connection file>`. In
+     IPython, `sys.argv` is now parsed only while `%run` executes a script
+     (IPython sets it to the script's arguments); otherwise the function's
+     defaults apply, as for a script run without arguments.
+  2. *Cell temp file taken as the script.* The caller was
+     `/tmp/ipykernel_<pid>/<hash>.py`, so the run directory, the project root
+     and the provenance record all landed under `/tmp`. The stack walk now
+     recognises IPython cells (a `linecache` name with no file behind it) and
+     the `%run` script, and skips installed/stdlib frames.
+  3. *Notebook never recorded.* The notebook a kernel executes is resolved —
+     `$SCITEX_NOTEBOOK_PATH` > VS Code `__vsc_ipynb_file__` > Jupyter
+     `__session__` / `$JPY_SESSION_NAME` > a `*.ipynb` on the launching
+     process's command line (nbconvert, papermill, `jupyter execute`; accepted
+     only when that notebook contains the cell being executed) > a Jupyter
+     server query — and, for an in-cell session, becomes the session's script:
+     project root, `<notebook>_out/` and `script_path`. When nothing resolves
+     the run is recorded without a code file (`path_unresolved`, WARNING;
+     outputs under `<cwd>/notebook_out/`, where scitex-io saves too), never as
+     the cell file.
+- **A process that outlives its session (a notebook kernel) keeps working.**
+  - `close()` now restores the `sys.stdout` / `sys.stderr` and logging
+    handlers that `start()` replaced with the run's log tee. Before, the
+    closed tee stayed installed. In ipykernel it has no `set_parent`, so the
+    output of every later cell (including a second session's) was routed to
+    the finished cell and lost.
+  - Session ids take their random suffix from the OS entropy source. The
+    global `random`, which every session seeds with `seed=42`, gave a second
+    session in the same process and second the SAME id and run directory as
+    the first.
+
+### Added
+
+- `entry` of a kernel session (`kind: "notebook"`) records `path`,
+  `path_source`, `invocation` (`cell` | `run` | `file`), `code_sha256` (code
+  cells only — scheme `ipynb-code-v1`, unchanged by re-execution, outputs,
+  execution counts or metadata), `sha256` (whole file), `code_cells`, and the
+  executed-cell history (`executed_cells`, `executed_in_order`,
+  `executed_cells_not_in_file` with a WARNING for unsaved cells).
+  `notebook_path` is also set for a `%run` script (its driver notebook).
+- The session opens a `scitex_io.provenance_scope` for the run; its
+  lost-provenance tally is in the close metadata as `io_provenance`. Loads and
+  saves inside a session are no longer reported as "outside any provenance
+  scope".
+
+### Changed
+
+- Requires `scitex-io>=0.5.0` (`provenance_scope`). The `dev` extra adds
+  `ipykernel`, `nbclient`, `nbconvert`, `nbformat` for the real-kernel tests.
+- Caller resolution moved from `_lifecycle/_start.py` to
+  `_lifecycle/_caller.py` (re-exported), and the environment collectors
+  (`packages` / `unresolved_imports` / `local_modules`) from `_provenance.py`
+  to `_lifecycle/_environment.py`. No API change.
+
+### Tests
+- Project-root conformance vectors: `tests/scitex_session/conformance/project-root-vectors.json`
+  (byte-identical to scitex-clew's `tests/scitex_clew/conformance/` copy, which runs the same table against its
+  standalone resolver) is run end to end through `collect_run_metadata`. A
+  change to the detection rule must update both implementations and the file
+  in both repositories. No code change; no release needed.
+
 ## [0.3.7] - 2026-11-18
 
 No scitex-clew change is required: clew's capture already takes `project_root`

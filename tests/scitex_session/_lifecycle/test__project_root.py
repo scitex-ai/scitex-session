@@ -11,6 +11,7 @@ above it on the machine running the suite.
 from __future__ import annotations
 
 import contextlib
+import json
 import logging
 import os
 import shutil
@@ -292,6 +293,88 @@ class TestFallbacks:
             result = resolve_project_root(None, cwd=home / "w")
         # Assert
         assert (result["project_root"], caplog.text) == (str(home / "w"), "")
+
+
+#: Shared with scitex-clew (byte-identical file at the same path there), whose
+#: standalone resolver runs the SAME table. A rule change updates both
+#: implementations and this file in both repositories.
+VECTORS = (
+    Path(__file__).resolve().parents[1] / "conformance" / "project-root-vectors.json"
+)
+CASES = json.loads(VECTORS.read_text())["cases"]
+RESOLVING = [c for c in CASES if "error" not in c["expect"]]
+FAILING = [c for c in CASES if "error" in c["expect"]]
+
+
+def _abs(sandbox: Path, rel: Optional[str]) -> Optional[str]:
+    return None if rel is None else str(sandbox / rel)
+
+
+@contextlib.contextmanager
+def _vector(case: dict, tmp_path: Path) -> Iterator[dict]:
+    """Build the case's tree (real files, real ``git init``), enter its state."""
+    if case.get("git_init") and GIT is None:
+        pytest.skip("git executable not on PATH")
+    sandbox = tmp_path.resolve()
+    for entry in case.get("tree", []):
+        path = sandbox / entry
+        if entry.endswith("/"):
+            path.mkdir(parents=True, exist_ok=True)
+        else:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("")
+    for repo in case.get("git_init", []):
+        _git_init(sandbox / repo)
+    with _environment(
+        sandbox / case.get("home", "."),
+        sandbox / case.get("cwd", "."),
+        explicit=_abs(sandbox, case.get("env")),
+    ):
+        yield {
+            "sandbox": sandbox,
+            "script": _abs(sandbox, case.get("script")),
+            "explicit": _abs(sandbox, case.get("explicit")),
+        }
+
+
+class TestConformanceVectors:
+    """The shared table, run end to end through ``collect_run_metadata``
+    (the session's own git discovery included)."""
+
+    @pytest.mark.parametrize("case", RESOLVING, ids=[c["id"] for c in RESOLVING])
+    def test_vector_resolves_expected_root_rule_and_warning(
+        self, case, tmp_path, caplog
+    ):
+        # Arrange
+        expect = case["expect"]
+        # Act
+        with _vector(case, tmp_path) as v, caplog.at_level(logging.WARNING):
+            meta = collect_run_metadata(
+                v["script"], modules={}, project_root=v["explicit"]
+            )
+        # Assert
+        assert (
+            meta["project_root"],
+            meta["project_root_source"],
+            meta["project_root_marker"],
+            "no project root found" in caplog.text,
+        ) == (
+            str((v["sandbox"] / expect["root"]).resolve()),
+            expect["source"],
+            expect["marker"],
+            bool(case.get("warns")),
+        )
+
+    @pytest.mark.parametrize("case", FAILING, ids=[c["id"] for c in FAILING])
+    def test_vector_with_a_bad_explicit_root_raises_value_error(self, case, tmp_path):
+        # Arrange
+        collect = collect_run_metadata
+        # Act
+        with _vector(case, tmp_path) as v:
+            call = lambda: collect(v["script"], modules={}, project_root=v["explicit"])  # noqa: E731
+            # Assert
+            with pytest.raises(ValueError, match="is not an existing directory"):
+                call()
 
 
 class TestSessionArgument:

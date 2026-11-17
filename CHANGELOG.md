@@ -7,6 +7,12 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-11-17
+
+Pairs with scitex-clew >= 0.23.0, whose `on_session_close(..., metadata=)`
+already merges the new close-time payload into the run record. Applying
+`relocations` to recorded file paths is a clew-side follow-up (see #67).
+
 ### Fixed
 
 - **Third-party imports are recorded (#64).** `packages` now covers every

@@ -349,4 +349,47 @@ class TestPublicApiExposure:
         } <= exported
 
 
+class TestCloseHookMetadata:
+    """Close-time metadata reaches hooks that accept it; old hooks still work."""
+
+    def test_hook_with_metadata_parameter_receives_it(self):
+        # Arrange
+        seen = []
+
+        def hook(status, exit_code, metadata=None):
+            seen.append(metadata)
+
+        _hooks.register_session_close_hook(hook)
+        # Act
+        _hooks._fire_session_close_hooks("success", 0, metadata={"k": 1})
+        # Assert
+        assert seen == [{"k": 1}]
+
+    def test_hook_with_var_keywords_receives_metadata(self):
+        # Arrange
+        seen = []
+
+        def hook(status, exit_code, **kwargs):
+            seen.append(kwargs)
+
+        _hooks.register_session_close_hook(hook)
+        # Act
+        _hooks._fire_session_close_hooks("failed", 1, metadata={"k": 2})
+        # Assert
+        assert seen == [{"metadata": {"k": 2}}]
+
+    def test_two_argument_hook_is_called_without_metadata(self):
+        # Arrange
+        seen = []
+
+        def hook(status, exit_code):
+            seen.append((status, exit_code))
+
+        _hooks.register_session_close_hook(hook)
+        # Act
+        failures = _hooks._fire_session_close_hooks("success", 0, metadata={"k": 3})
+        # Assert
+        assert (seen, failures) == ([("success", 0)], [])
+
+
 # EOF

@@ -17,7 +17,17 @@ Contract (stable, do not change without coordinating with subscribers):
 - ``register_session_start_hook(fn)`` — ``fn`` is called at session start as
   ``fn(session_id, script_path, metadata)`` (positional).
 - ``register_session_close_hook(fn)`` — ``fn`` is called at session close as
-  ``fn(status, exit_code)`` (positional).
+  ``fn(status, exit_code)`` (positional), plus ``metadata=<dict>`` as a
+  keyword when ``fn`` accepts it (a ``metadata`` parameter or ``**kwargs``).
+  The close ``metadata`` is the close-time part of the run record
+  (``scitex_session._lifecycle._provenance.collect_close_metadata``):
+  ``packages`` / ``local_modules`` / ``unresolved_imports`` re-collected at
+  close (imports made during the run), and ``relocations`` /
+  ``sdir_run_final``. Close hooks fire AFTER the session moved its run
+  directory from ``RUNNING/<ID>`` to ``FINISHED_*/<ID>``; ``relocations``
+  (``[{"from": old_dir, "to": new_dir, ...}]``, real paths) tells the
+  observer that every path it recorded under ``from`` now lives under
+  ``to``.
 
 Every hook is fired in isolation — a misbehaving subscriber can never break a
 session or block the hooks registered after it — but a failure is NEVER
@@ -29,7 +39,8 @@ summarises them at close, so an incomplete provenance record is visible.
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, List
+import inspect
+from typing import Any, Callable, Dict, List, Optional
 
 # Module-level registries. Kept as plain lists so ordering is deterministic
 # (registration order) and membership checks stay simple.
@@ -52,7 +63,9 @@ def register_session_start_hook(fn: Callable[..., Any]) -> Callable[..., Any]:
 def register_session_close_hook(fn: Callable[..., Any]) -> Callable[..., Any]:
     """Register ``fn`` to be called at session close.
 
-    ``fn`` is invoked as ``fn(status, exit_code)``. Registration is idempotent.
+    ``fn`` is invoked as ``fn(status, exit_code)``, with ``metadata=`` added
+    when ``fn`` accepts it (see the module docstring). Registration is
+    idempotent.
     Returns ``fn`` so it can also be used as a decorator.
     """
     if fn not in _SESSION_CLOSE_HOOKS:
@@ -119,16 +132,43 @@ def _fire_session_start_hooks(
 
 
 def _fire_session_close_hooks(
-    status: Any = "success", exit_code: Any = 0
+    status: Any = "success",
+    exit_code: Any = 0,
+    metadata: Optional[Dict[str, Any]] = None,
 ) -> List[HookFailure]:
-    """Fire all registered close hooks; return one record per failed hook."""
+    """Fire all registered close hooks; return one record per failed hook.
+
+    ``metadata`` is passed as a keyword to every hook that accepts it; a
+    hook with the original ``fn(status, exit_code)`` signature is called
+    exactly as before.
+    """
     failures: List[HookFailure] = []
     for hook in list(_SESSION_CLOSE_HOOKS):
         try:
-            hook(status, exit_code)
+            if metadata is not None and _accepts_keyword(hook, "metadata"):
+                hook(status, exit_code, metadata=metadata)
+            else:
+                hook(status, exit_code)
         except Exception as exc:  # noqa: BLE001 - recorded + warned, not swallowed
             failures.append(_record_failure("close", hook, exc))
     return failures
+
+
+def _accepts_keyword(fn: Callable[..., Any], name: str) -> bool:
+    """True when ``fn`` can be called with ``name=`` as a keyword."""
+    try:
+        params = inspect.signature(fn).parameters.values()
+    except (TypeError, ValueError):  # builtins without a signature
+        return False
+    return any(
+        p.kind is inspect.Parameter.VAR_KEYWORD
+        or (
+            p.name == name
+            and p.kind
+            in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+        )
+        for p in params
+    )
 
 
 # EOF

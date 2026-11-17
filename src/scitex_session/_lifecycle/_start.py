@@ -20,6 +20,7 @@ from .._hooks import _fire_session_close_hooks, _fire_session_start_hooks
 from .._manager import get_global_session_manager
 from ._config import derive_sdir_out, setup_configs
 from ._matplotlib import setup_matplotlib
+from ._entry import detect_entry
 from ._provenance import collect_run_metadata
 from ._utils import (
     clear_python_log_dir,
@@ -95,7 +96,7 @@ def _is_internal_frame_file(path: str) -> bool:
     return False
 
 
-def _find_user_caller_file(hint: Optional[str] = None) -> str:
+def _find_user_caller_file(hint: Optional[str] = None) -> Optional[str]:
     """Resolve the user's script path by walking the call stack outward.
 
     Walks ``inspect.stack()`` from innermost to outermost and returns
@@ -109,11 +110,13 @@ def _find_user_caller_file(hint: Optional[str] = None) -> str:
     the wrapper's ``__file__`` was used) we discard it and walk
     instead.
 
-    Falls back to a stable sentinel only if no user frame can be found
-    (deep notebook / -c invocation); the existing IPython branch in
-    :func:`start` handles those cases after this returns.
+    Returns ``None`` when no user frame exists — the session was entered
+    from ``python -c``, stdin or a REPL, whose code has no file. It never
+    falls back to a package-internal frame: attributing the run to the
+    session library's own module recorded that module as the run's script
+    (scitex-session#65).
     """
-    if hint and not _is_internal_frame_file(hint):
+    if hint and not _is_internal_frame_file(hint) and not _is_own_package_file(hint):
         return hint
 
     for frame_info in inspect.stack():
@@ -129,14 +132,38 @@ def _find_user_caller_file(hint: Optional[str] = None) -> str:
         # exec'd code), fall back to the filename heuristic.
         if modname is None and _is_internal_frame_file(candidate):
             continue
+        if _is_own_package_file(candidate):
+            continue
         return candidate
+    return None
 
-    # No user frame located; preserve previous behaviour and fall back
-    # to whatever the innermost non-self frame was.
-    stack = inspect.stack()
-    if len(stack) > 1:
-        return stack[1].filename
-    return hint or "unknown.py"
+
+def _is_own_package_file(path: str) -> bool:
+    """True for a file inside the imported scitex_session package."""
+    if not path:
+        return False
+    package_dir = _os.path.dirname(_os.path.dirname(_os.path.realpath(__file__)))
+    real = _os.path.realpath(path)
+    return real == package_dir or real.startswith(package_dir + _os.sep)
+
+
+#: Output-anchor stems for sessions entered without a script file.
+_ENTRY_ANCHORS = {
+    "command": "python_c",
+    "stdin": "python_stdin",
+    "interactive": "python_interactive",
+}
+
+
+def _entry_anchor(entry: Dict[str, Any]) -> str:
+    """Pseudo script path that anchors ``<stem>_out/`` for a file-less entry.
+
+    It lives in the working directory (where the command ran and where its
+    relative paths resolve); it is used ONLY to place the output tree and is
+    never recorded as the run's script.
+    """
+    stem = _ENTRY_ANCHORS.get(entry.get("kind"), "python_session")
+    return _os.path.join(_os.getcwd(), stem + ".py")
 
 
 # Environment variable that redirects the *whole* session ``_out`` base
@@ -250,6 +277,7 @@ def start(
     """
     IS_DEBUG = get_debug_mode()
     ID, PID = initialize_env(IS_DEBUG)
+    entry = detect_entry()
 
     # Convert Path objects to strings for internal processing
     if sdir is not None and isinstance(sdir, Path):
@@ -273,27 +301,31 @@ def start(
         # a hint, but if it still points at an internal scitex frame
         # we override it with the walked result.
         caller_file = _find_user_caller_file(hint=file)
-        if "ipython" in caller_file.lower():
+        script_path = caller_file
+        if caller_file is not None and "ipython" in caller_file.lower():
             try:
                 from scitex_context import get_notebook_path
 
                 nb_path = get_notebook_path()
-                caller_file = nb_path if nb_path else f"/tmp/{_os.getenv('USER')}.py"
             except Exception as e:
-                caller_file = f"/tmp/{_os.getenv('USER')}.py"
+                nb_path = None
                 logger.warning(
                     "scitex-session: could not resolve the notebook path "
-                    "(%s: %s); recording the session under %s instead",
+                    "(%s: %s); the session is recorded without a script file",
                     type(e).__name__,
                     e,
-                    caller_file,
                 )
+            script_path = nb_path or None
+            caller_file = nb_path or f"/tmp/{_os.getenv('USER')}.py"
+
+        if caller_file is None:
+            # ``python -c`` / stdin / REPL: no script file to record.
+            caller_file = _entry_anchor(entry)
 
         # Convert to absolute path if relative and resolve symlinks
-        if not _os.path.isabs(caller_file):
-            caller_file = _os.path.realpath(_os.path.abspath(caller_file))
-        else:
-            caller_file = _os.path.realpath(caller_file)
+        caller_file = _os.path.realpath(_os.path.abspath(caller_file))
+        if script_path is not None:
+            script_path = _os.path.realpath(_os.path.abspath(script_path))
 
         # Define sdir (honours $SCITEX_SESSION_OUT_DIR redirect)
         sdir = _resolve_out_base_dir(caller_file, ID)
@@ -303,6 +335,7 @@ def start(
             sdir = sdir[:-1] + f"-{sdir_suffix}/"
     else:
         caller_file = file
+        script_path = file
 
     if clear_logs and caller_file:
         clear_python_log_dir(sdir + caller_file + "/")
@@ -326,18 +359,19 @@ def start(
     # post-load hook records each one as a run INPUT — but only while an
     # observer's run record is open.
     metadata = collect_run_metadata(
-        caller_file,
+        script_path,
+        entry=entry,
         args=args,
         seed=seed,
         sdir_run=sdir,
         sdir_out=derive_sdir_out(sdir),
     )
-    hook_failures = _start_verification(ID, caller_file, metadata)
+    hook_failures = _start_verification(ID, script_path, metadata)
 
     # Setup configs - use caller_file (computed) instead of file (parameter)
     try:
         CONFIGS = setup_configs(
-            IS_DEBUG, ID, PID, caller_file, sdir, relative_sdir, verbose
+            IS_DEBUG, ID, PID, script_path, sdir, relative_sdir, verbose
         )
     except BaseException:
         # The run record is open; close it as failed instead of leaving it
@@ -380,14 +414,18 @@ def start(
     # Register session
     session_manager = get_global_session_manager()
     # Hooks already fired above (before config loading); do not re-fire.
-    session_manager.create_session(ID, CONFIGS, script_path=caller_file, fire_hooks=False)
+    session_manager.create_session(
+        ID, CONFIGS, script_path=script_path, fire_hooks=False
+    )
 
-    print_header(ID, PID, caller_file, args, CONFIGS, verbose)
+    print_header(
+        ID, PID, script_path or f"<{entry['kind']}>", args, CONFIGS, verbose
+    )
 
-    if show_execution_flow:
+    if show_execution_flow and script_path:
         from scitex_str import printc as _printc
 
-        structure = analyze_code_flow(caller_file)
+        structure = analyze_code_flow(script_path)
         _printc(structure)
 
     # Return appropriate values based on whether sys was provided

@@ -7,6 +7,42 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-11-17
+
+Pairs with scitex-clew >= 0.23.0, whose `on_session_close(..., metadata=)`
+already merges the new close-time payload into the run record. Applying
+`relocations` to recorded file paths is a clew-side follow-up (see #67).
+
+### Fixed
+
+- **Third-party imports are recorded (#64).** `packages` now covers every
+  distribution behind an imported top-level module — also modules imported
+  inside the run (re-collected at close), editable installs (PEP 610
+  `direct_url.json`) and distributions without `top_level.txt` — and is
+  only attributed when the distribution's files are where the module was
+  loaded from. Imported code no distribution owns is listed in the new
+  `unresolved_imports` instead of being dropped. The scan reads metadata
+  text only (tens of ms instead of `packages_distributions()`' seconds).
+- **`python -c` / stdin / REPL sessions are not attributed to a file (#65).**
+  Such a session records `script_path = None` and a new `entry` field
+  (`{"kind": "command", "command_sha256", "command"}` for `-c`); the caller
+  walk never falls back to a scitex_session-internal file. The project root
+  is the working directory (git root when inside a repository) and outputs
+  go to `<cwd>/python_c_out/` (`python_stdin_out/`, `python_interactive_out/`).
+- **Run-dir outputs are handed over at their final path (#66).** `close()`
+  now moves `RUNNING/<ID>` to `FINISHED_*/<ID>` (a single rename when
+  possible, so the tee'd logs keep their writes) BEFORE firing the close
+  hooks, and passes `metadata={"relocations": [{"from", "to"}],
+  "sdir_run_final", "packages", "unresolved_imports", "local_modules",
+  "close_capture_errors"}` to every close hook that accepts a `metadata`
+  keyword (two-argument hooks are called as before). Covers success, error
+  and other exit statuses. `CONFIGS/CONFIG.yaml` is written in the final
+  directory and carries the same fields under `_PROVENANCE`.
+- **Dependency: `scitex-io>=0.4.2`.** Older scitex-io wrote unparseable
+  YAML for any list of mappings (e.g. `_HOOK_FAILURES`, `relocations`) in
+  `CONFIGS/CONFIG.yaml` (fixed in scitex-io 0.4.2, `cfbc381`). The ANSI
+  cleanup of the run's logs now finds them (the glob lacked a separator).
+
 ## [0.3.5] - 2026-11-17
 
 Pairs with scitex-clew 0.23.0 (audit-hook capture), which reads

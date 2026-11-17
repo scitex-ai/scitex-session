@@ -18,10 +18,23 @@ Field names (stable; observers may read them):
 ``python``         ``{"version", "executable"}``
 ``git``            ``{"repository": False}`` or ``{"root", "commit", "branch",
                    "dirty", "dirty_paths"}`` for the repo holding the script
+``entry``          how the process was entered (see :mod:`._entry`):
+                   ``{"kind": "script"|"module"|"command"|"stdin"|
+                   "interactive"|"notebook"|"unknown", ...}``; a ``python -c``
+                   entry carries ``command_sha256`` (and ``command`` when
+                   short) instead of a script file
 ``packages``       ``{distribution: version}`` for every imported top-level
-                   module that belongs to an installed distribution
+                   module that belongs to an installed distribution —
+                   third-party, scitex and editable installs alike; refreshed
+                   at session close (:func:`collect_close_metadata`) so
+                   modules imported inside the run are included
+``unresolved_imports`` ``{module: location}`` imported top-level modules
+                   that are neither stdlib, project-local nor attributable to
+                   an installed distribution — the environment record cannot
+                   reproduce them, and says so instead of omitting them
 ``project_root``   the script's project: the git root, else the script's
-                   directory (``None`` when neither is known). The boundary
+                   directory, else (no script: ``-c`` / stdin / REPL) the
+                   working directory. The boundary
                    ``local_modules`` uses; observers that capture file access
                    (scitex-clew) use the same boundary, so "project-local"
                    means one thing across packages
@@ -32,6 +45,14 @@ Field names (stable; observers may read them):
 ``sdir_out``       the script's output base (where ``stx.io.save`` writes)
 ``started_at``     ISO-8601 start time
 ``notebook_path``  only for ``.ipynb`` sessions
+``sdir_run_final`` (close only) the run directory after the session moved it
+                   from ``RUNNING/`` to ``FINISHED_*/``
+``relocations``    (close only) ``[{"from", "to", ...}]``: every path an
+                   observer recorded under ``from`` now lives under ``to``
+                   (``archive`` is set when ``to`` is then collapsed into
+                   that archive file)
+``close_capture_errors`` (close only) like ``capture_errors``, for the
+                   close-time collection
 ``capture_errors`` ``{field: "Type: message"}`` for every field that could
                    not be collected — never silently omitted
 
@@ -50,9 +71,12 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, Mapping, Optional
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple
+from urllib.parse import unquote, urlparse
 
 from scitex_logging import getLogger
+
+from ._entry import detect_entry
 
 logger = getLogger(__name__)
 
@@ -68,6 +92,7 @@ def collect_run_metadata(
     sdir_run: Optional[str] = None,
     sdir_out: Optional[str] = None,
     *,
+    entry: Optional[Mapping[str, Any]] = None,
     modules: Optional[Mapping[str, Any]] = None,
     git_executable: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -76,13 +101,17 @@ def collect_run_metadata(
     Parameters
     ----------
     script_path : str or None
-        The user's script (or notebook) path.
+        The user's script (or notebook) path; ``None`` when the session was
+        not started from a file (``python -c``, stdin, REPL).
     args : argparse.Namespace or mapping, optional
         Parsed CLI arguments.
     seed : int, optional
         The RNG seed the session initialised.
     sdir_run, sdir_out : str, optional
         This run's directory and the script's output base.
+    entry : mapping, optional
+        How the process was entered (:func:`._entry.detect_entry`); detected
+        here when not given.
     modules : mapping, optional
         Module table to inspect for packages / local modules. Defaults to
         ``sys.modules``.
@@ -109,6 +138,7 @@ def collect_run_metadata(
         "sdir_run": str(sdir_run) if sdir_run else None,
         "sdir_out": str(sdir_out) if sdir_out else None,
         "started_at": datetime.now().isoformat(),
+        "entry": dict(entry) if entry is not None else detect_entry(),
     }
     if script is not None and script.suffix == ".ipynb":
         meta["notebook_path"] = str(script)
@@ -120,17 +150,85 @@ def collect_run_metadata(
 
     project_root = _project_root(git_info, script)
     meta["project_root"] = str(project_root) if project_root is not None else None
-    collectors: Dict[str, Callable[[], Any]] = {
-        "packages": lambda: _package_versions(modules),
-        "local_modules": lambda: _local_module_hashes(modules, project_root, script),
-    }
-    for field, collect in collectors.items():
-        value = _capture(field, errors, collect)
-        if value is not None:
-            meta[field] = value
+    _collect_environment(meta, errors, modules, project_root, script)
 
     meta["capture_errors"] = errors
     return json.loads(json.dumps(meta, default=str))
+
+
+def collect_close_metadata(
+    start_metadata: Optional[Mapping[str, Any]],
+    *,
+    script_path: Optional[str] = None,
+    relocations: Optional[List[Dict[str, Any]]] = None,
+    sdir_run_final: Optional[str] = None,
+    modules: Optional[Mapping[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Close-time additions to the run metadata (handed to close hooks).
+
+    The start-time snapshot of ``sys.modules`` misses everything the run
+    imports *inside* the decorated function (a lazily imported analysis
+    library is the common case), so the environment is re-collected here
+    and merged with the start snapshot. ``relocations`` /
+    ``sdir_run_final`` describe where the session moved its run directory
+    (see :func:`~._close.running2finished`).
+
+    Returns a JSON-serialisable mapping with ``packages`` and
+    ``local_modules`` (union of start and close), ``unresolved_imports``
+    (re-evaluated for every module still imported), ``relocations``,
+    ``sdir_run_final`` and ``close_capture_errors``.
+    """
+    modules = sys.modules if modules is None else modules
+    start = dict(start_metadata or {})
+    root = start.get("project_root")
+    project_root = Path(root) if root else None
+    script = Path(script_path).resolve() if script_path else None
+    errors: Dict[str, str] = {}
+    fresh: Dict[str, Any] = {}
+    _collect_environment(fresh, errors, modules, project_root, script)
+
+    meta: Dict[str, Any] = {}
+    for field in ("packages", "local_modules"):
+        merged = dict(start.get(field) or {})
+        merged.update(fresh.get(field) or {})
+        meta[field] = dict(sorted(merged.items()))
+    # A start-time verdict on a module that is still imported is superseded
+    # by the close-time one; keep only verdicts on modules since unloaded.
+    unresolved = {
+        name: where
+        for name, where in (start.get("unresolved_imports") or {}).items()
+        if name not in modules
+    }
+    unresolved.update(fresh.get("unresolved_imports") or {})
+    meta["unresolved_imports"] = dict(sorted(unresolved.items()))
+    meta["relocations"] = list(relocations or [])
+    meta["sdir_run_final"] = sdir_run_final
+    # Its own key: observers merge this mapping into the start metadata, and
+    # a ``capture_errors`` key here would overwrite the start-time errors.
+    meta["close_capture_errors"] = errors
+    return json.loads(json.dumps(meta, default=str))
+
+
+def _collect_environment(
+    meta: Dict[str, Any],
+    errors: Dict[str, str],
+    modules: Mapping[str, Any],
+    project_root: Optional[Path],
+    script: Optional[Path],
+) -> None:
+    """Fill ``packages`` / ``unresolved_imports`` / ``local_modules``."""
+    env = _capture(
+        "packages", errors, lambda: _imported_distributions(modules, project_root)
+    )
+    if env is not None:
+        meta["packages"], meta["unresolved_imports"] = env
+    local = _capture(
+        "local_modules",
+        errors,
+        lambda: _local_module_hashes(modules, project_root, script),
+    )
+    if local is not None:
+        meta["local_modules"] = local
 
 
 def _capture(field: str, errors: Dict[str, str], collect: Callable[[], Any]) -> Any:
@@ -202,7 +300,11 @@ def _git_state(git: Optional[str], script: Optional[Path]) -> Dict[str, Any]:
 def _project_root(git_info: Optional[Dict[str, Any]], script: Optional[Path]):
     if git_info and git_info.get("root"):
         return Path(git_info["root"]).resolve()
-    return script.parent if script is not None else None
+    if script is not None:
+        return script.parent
+    # No script file (``python -c`` / stdin / REPL): relative paths, and so
+    # the files the run touches, resolve against the working directory.
+    return Path.cwd().resolve()
 
 
 def _module_file(module: Any) -> Optional[Path]:
@@ -213,17 +315,202 @@ def _module_file(module: Any) -> Optional[Path]:
     return p.resolve() if p.is_file() else None
 
 
-def _package_versions(modules: Mapping[str, Any]) -> Dict[str, str]:
-    from importlib.metadata import packages_distributions, version
+def _module_location(module: Any) -> Optional[Path]:
+    """Where a module was loaded from: its file (any suffix) or package dir."""
+    path = getattr(module, "__file__", None)
+    if path:
+        return Path(path).resolve()
+    for entry in list(getattr(module, "__path__", None) or ()):
+        return Path(entry).resolve()  # namespace package: its first portion
+    return None
 
-    top_level = {name.split(".", 1)[0] for name in list(modules)}
-    dist_map = packages_distributions()
-    versions: Dict[str, str] = {}
-    for name in sorted(top_level):
-        for dist in dist_map.get(name, ()):
-            if dist not in versions:
-                versions[dist] = version(dist)
-    return versions
+
+def _is_installed(path: Path) -> bool:
+    return any(marker in path.parts for marker in _INSTALLED_MARKERS)
+
+
+def _interpreter_roots() -> List[Path]:
+    """The interpreter's own trees (stdlib, venv prefix): never project code."""
+    roots = {sys.prefix, sys.base_prefix, sys.exec_prefix, sys.base_exec_prefix}
+    return [Path(r).resolve() for r in sorted(roots) if r]
+
+
+def _under(path: Path, roots: Iterable[Path]) -> bool:
+    for root in roots:
+        try:
+            path.relative_to(root)
+            return True
+        except ValueError:
+            continue
+    return False
+
+
+def _is_stdlib(name: str, module: Any, location: Optional[Path]) -> bool:
+    if name in _STDLIB_NAMES:
+        return True
+    spec = getattr(module, "__spec__", None)
+    if getattr(spec, "origin", None) in ("built-in", "frozen"):
+        return True
+    # Python < 3.10 has no ``sys.stdlib_module_names``: a module inside the
+    # base interpreter tree but outside any site-packages is stdlib.
+    return (
+        location is not None
+        and not _is_installed(location)
+        and _under(location, [Path(sys.base_prefix).resolve()])
+    )
+
+
+_STDLIB_NAMES = frozenset(getattr(sys, "stdlib_module_names", ())) | frozenset(
+    sys.builtin_module_names
+)
+_NOT_A_MODULE = ("__main__", "__mp_main__")
+_EXTENSION_SUFFIXES = (".so", ".pyd")
+
+
+def _record_top_level_names(record: str) -> List[str]:
+    """Importable top-level names a distribution's RECORD installs."""
+    names = set()
+    for line in record.splitlines():
+        path = line.rsplit(",", 2)[0].strip().strip('"')
+        if not path or path.startswith(".."):
+            continue
+        head, sep, _ = path.partition("/")
+        if sep:  # a directory: package dir, unless *.dist-info / *.data
+            if "." not in head and head != "__pycache__":
+                names.add(head)
+        elif head.endswith(".py"):
+            names.add(head[:-3])
+        elif head.endswith(_EXTENSION_SUFFIXES):
+            names.add(head.split(".", 1)[0])
+    return sorted(names)
+
+
+def _editable_root(dist: Any) -> Optional[Path]:
+    """Source directory of an editable (``pip install -e``) distribution.
+
+    Editable installs often ship no ``top_level.txt`` and a RECORD that lists
+    only a ``.pth`` / finder hook, so their modules cannot be named from the
+    metadata; PEP 610 ``direct_url.json`` names the source tree instead.
+    """
+    raw = dist.read_text("direct_url.json")
+    if not raw:
+        return None
+    info = json.loads(raw)
+    if not (info.get("dir_info") or {}).get("editable"):
+        return None
+    url = urlparse(info.get("url", ""))
+    if url.scheme != "file":
+        return None
+    return Path(unquote(url.path)).resolve()
+
+
+def _distribution_index() -> Tuple[Dict[str, List[Any]], List[Tuple[Path, Any]]]:
+    """``{top-level module: [distribution]}`` plus editable source roots.
+
+    Reads only each distribution's ``top_level.txt`` (``RECORD`` when absent)
+    and ``direct_url.json`` as text; METADATA (name, version) is parsed only
+    for the distributions that turn out to own an imported module. Tens of
+    milliseconds for an environment of hundreds of distributions, where
+    ``importlib.metadata.packages_distributions()`` takes seconds. Order is
+    ``sys.path`` order, so a shadowed duplicate comes after the one Python
+    imports.
+    """
+    from importlib.metadata import distributions
+
+    by_module: Dict[str, List[Any]] = {}
+    editable: List[Tuple[Path, Any]] = []
+    for dist in distributions():
+        top = dist.read_text("top_level.txt")
+        names = (
+            top.split()
+            if top
+            else _record_top_level_names(dist.read_text("RECORD") or "")
+        )
+        for module_name in names:
+            by_module.setdefault(module_name, []).append(dist)
+        root = _editable_root(dist)
+        if root is not None:
+            editable.append((root, dist))
+    return by_module, editable
+
+
+def _imported_distributions(
+    modules: Mapping[str, Any], project_root: Optional[Path]
+) -> Tuple[Dict[str, str], Dict[str, str]]:
+    """Distributions behind every imported top-level module.
+
+    Returns ``(packages, unresolved)``: ``{dist: version}`` and
+    ``{module: location}`` for imported modules that are not stdlib, not
+    project code and not attributable to any installed distribution.
+    """
+    by_module, editable = _distribution_index()
+    interpreter = _interpreter_roots()
+    search_roots = [
+        Path(entry).resolve() for entry in sys.path if entry and _is_installed(Path(entry))
+    ]
+    packages: Dict[str, str] = {}
+    unresolved: Dict[str, str] = {}
+
+    def add(owners: Iterable[Any]) -> None:
+        for dist in owners:
+            name = dist.metadata["Name"]
+            if name:  # first on sys.path wins, as on import
+                packages.setdefault(name, dist.version)
+
+    for name in sorted({key.split(".", 1)[0] for key in list(modules)}):
+        if name in _NOT_A_MODULE:
+            continue
+        module = modules.get(name)
+        location = _module_location(module) if module is not None else None
+        if location is None:
+            # No file and no package path: a module object created at run
+            # time (Cython/pybind11 runtime modules, ``types.ModuleType``),
+            # not code loaded from anywhere — nothing to install. A
+            # distribution-backed name still resolves.
+            add(by_module.get(name) or ())
+            continue
+        if _is_stdlib(name, module, location):
+            continue
+        if (
+            project_root is not None
+            and not _is_installed(location)
+            and not _under(location, interpreter)
+            and _under(location, [project_root])
+        ):
+            continue  # project code: hashed in ``local_modules`` instead
+        candidates = (by_module.get(name) or []) + (
+            # an extension registered under a top-level name but shipped
+            # inside another package (``pandas/_libs/_cyutility*.so``)
+            by_module.get(_installed_top_level(location, search_roots) or "") or []
+        )
+        # Only a distribution whose files are where the module was loaded
+        # from backs it: a checkout on PYTHONPATH shadowing an installed copy
+        # of the same name runs the checkout, not the installed version.
+        owners = [d for d in candidates if _under(location, [_dist_base(d)])] or [
+            dist for root, dist in editable if _under(location, [root])
+        ]
+        if owners:
+            add(owners)
+            continue
+        unresolved[name] = str(location)
+    return dict(sorted(packages.items())), unresolved
+
+
+def _dist_base(dist: Any) -> Path:
+    """Directory a (non-editable) distribution installed its files into."""
+    return Path(dist.locate_file("")).resolve()
+
+
+def _installed_top_level(location: Path, search_roots: List[Path]) -> Optional[str]:
+    """Top-level name of the installed tree ``location`` lives in, if any."""
+    for root in search_roots:
+        try:
+            rel = location.relative_to(root)
+        except ValueError:
+            continue
+        head = rel.parts[0] if len(rel.parts) > 1 else None
+        return head
+    return None
 
 
 def _local_module_hashes(
@@ -233,12 +520,13 @@ def _local_module_hashes(
 ) -> Dict[str, str]:
     if project_root is None:
         return {}
+    interpreter = _interpreter_roots()
     hashes: Dict[str, str] = {}
     for module in list(modules.values()):
         path = _module_file(module)
         if path is None or path == script:
             continue
-        if any(marker in path.parts for marker in _INSTALLED_MARKERS):
+        if _is_installed(path) or _under(path, interpreter):
             continue
         try:
             path.relative_to(project_root)

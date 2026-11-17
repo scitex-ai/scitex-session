@@ -2,12 +2,13 @@
 description: |
   [TOPIC] scitex-session Environment Variables
   [DETAILS] Every environment variable scitex-session reads at runtime,
-  per the ecosystem `SCITEX_<MODULE>_*` naming rule. Currently
+  per the ecosystem `SCITEX_<MODULE>_*` naming rule. These are
   `SCITEX_SESSION_OUT_DIR`, which redirects the whole session `_out`
   base (RUNNING tree + running→finished copytree + archive) to a
   resolved base such as node-local scratch — the HPC / SLURM-array inode
-  relief knob. Default unset ⇒ byte-for-byte the legacy script-adjacent
-  behaviour. Use when adding a new env var or auditing drift.
+  relief knob (default unset ⇒ the legacy script-adjacent behaviour), and
+  `SCITEX_SESSION_PROJECT_ROOT`, which pins the provenance project root
+  (default unset ⇒ auto-detected). Use when adding a new env var or auditing drift.
 tags: [scitex-session-env-vars]
 ---
 
@@ -20,6 +21,7 @@ ecosystem `SCITEX_<MODULE>_*` naming rule (general skill
 | Variable | Purpose | Default | Type |
 |---|---|---|---|
 | `SCITEX_SESSION_OUT_DIR` | Redirect the whole session `_out` base off the script-adjacent default (see below). | `—` (unset ⇒ script-adjacent) | path |
+| `SCITEX_SESSION_PROJECT_ROOT` | Pin the project root recorded as run metadata `project_root` (the project/external boundary for provenance). An `@session(project_root=...)` argument wins over it. | `—` (unset ⇒ auto-detected, see `03_python-api.md`) | path (existing dir) |
 
 ## `SCITEX_SESSION_OUT_DIR`
 
@@ -87,3 +89,13 @@ node-local disk and never touches the shared FS.
 `scitex_session._lifecycle._start._resolve_out_base_dir` — the single
 place the base is computed (called from `start()`); tests in
 `tests/scitex_session/_lifecycle/test__start_out_dir_env.py`.
+
+## `SCITEX_SESSION_PROJECT_ROOT`
+
+Names the project root explicitly, for layouts auto-detection cannot see
+(no VCS, no `pyproject.toml`, no `scripts/` + `config/` pair). It must be
+an existing directory — a typo fails the session start loudly instead of
+silently shrinking the project. The run metadata records
+`project_root_source: "env"`. Reference implementation:
+`scitex_session._lifecycle._project_root.resolve_project_root`; tests in
+`tests/scitex_session/_lifecycle/test__project_root.py`.

@@ -32,12 +32,21 @@ Field names (stable; observers may read them):
                    that are neither stdlib, project-local nor attributable to
                    an installed distribution — the environment record cannot
                    reproduce them, and says so instead of omitting them
-``project_root``   the script's project: the git root, else the script's
-                   directory, else (no script: ``-c`` / stdin / REPL) the
-                   working directory. The boundary
+``project_root``   the script's project, resolved by
+                   :func:`._project_root.resolve_project_root`: explicit
+                   argument > ``$SCITEX_SESSION_PROJECT_ROOT`` > git root > nearest
+                   ancestor with a project marker > working directory (when
+                   it contains the script) > the script's directory (with a
+                   warning). The boundary
                    ``local_modules`` uses; observers that capture file access
                    (scitex-clew) use the same boundary, so "project-local"
                    means one thing across packages
+``project_root_source`` which rule chose ``project_root``: ``"argument"``,
+                   ``"env"``, ``"git"``, ``"marker"``, ``"cwd"`` or
+                   ``"script_dir"`` (the last resort)
+``project_root_marker`` the marker that matched (``"pyproject.toml"``,
+                   ``"scripts/ + config/"``, ...) when the source is
+                   ``"marker"``, else ``None``
 ``local_modules``  ``{abs_path: sha256}`` for imported modules that live in
                    ``project_root``, i.e. code inputs that are not pinned by a
                    package version
@@ -77,6 +86,7 @@ from urllib.parse import unquote, urlparse
 from scitex_logging import getLogger
 
 from ._entry import detect_entry
+from ._project_root import resolve_project_root
 
 logger = getLogger(__name__)
 
@@ -95,6 +105,7 @@ def collect_run_metadata(
     entry: Optional[Mapping[str, Any]] = None,
     modules: Optional[Mapping[str, Any]] = None,
     git_executable: Optional[str] = None,
+    project_root: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """Collect the context needed to re-run this session.
 
@@ -117,6 +128,9 @@ def collect_run_metadata(
         ``sys.modules``.
     git_executable : str, optional
         ``git`` binary. Defaults to ``shutil.which("git")``.
+    project_root : path-like, optional
+        Explicit project root; wins over ``$SCITEX_SESSION_PROJECT_ROOT`` and every
+        detected root. Must be an existing directory.
 
     Returns
     -------
@@ -148,9 +162,14 @@ def collect_run_metadata(
     if git_info is not None:
         meta["git"] = git_info
 
-    project_root = _project_root(git_info, script)
-    meta["project_root"] = str(project_root) if project_root is not None else None
-    _collect_environment(meta, errors, modules, project_root, script)
+    meta.update(
+        resolve_project_root(
+            script,
+            explicit=project_root,
+            git_root=(git_info or {}).get("root"),
+        )
+    )
+    _collect_environment(meta, errors, modules, Path(meta["project_root"]), script)
 
     meta["capture_errors"] = errors
     return json.loads(json.dumps(meta, default=str))
@@ -295,16 +314,6 @@ def _git_state(git: Optional[str], script: Optional[Path]) -> Dict[str, Any]:
     if len(dirty_paths) > _MAX_DIRTY_PATHS:
         info["dirty_paths_truncated"] = len(dirty_paths)
     return info
-
-
-def _project_root(git_info: Optional[Dict[str, Any]], script: Optional[Path]):
-    if git_info and git_info.get("root"):
-        return Path(git_info["root"]).resolve()
-    if script is not None:
-        return script.parent
-    # No script file (``python -c`` / stdin / REPL): relative paths, and so
-    # the files the run touches, resolve against the working directory.
-    return Path.cwd().resolve()
 
 
 def _module_file(module: Any) -> Optional[Path]:

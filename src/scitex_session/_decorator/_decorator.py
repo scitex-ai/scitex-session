@@ -59,7 +59,10 @@ def session(
         with a single archive file (1 inode vs 7).
     **session_kwargs
         Additional session configuration parameters forwarded to
-        ``scitex_session.start`` / ``scitex_session.close``.
+        ``scitex_session.start`` — e.g. ``project_root="/path/to/project"``
+        to pin the project boundary provenance observers use (otherwise
+        ``$SCITEX_SESSION_PROJECT_ROOT``, then auto-detection; see
+        :mod:`scitex_session._lifecycle._project_root`).
 
     Returns
     -------
@@ -124,6 +127,7 @@ def session(
     - ``rngg`` (RandomStateManager): Reproducibility manager; creates
       named generators via ``rngg("name")``.
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):

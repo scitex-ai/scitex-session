@@ -227,10 +227,10 @@ class TestExplicitOverride:
         script = _research_project(home / "proj")
         environ = {"HOME": str(home), PROJECT_ROOT_ENV: str(home / "typo")}
         # Act
-        with pytest.raises(ValueError, match="not an existing directory") as err:
-            resolve_project_root(script, environ=environ)
+        call = lambda: resolve_project_root(script, environ=environ)  # noqa: E731
         # Assert
-        assert "typo" in str(err.value)
+        with pytest.raises(ValueError, match="'.*typo' is not an existing directory"):
+            call()
 
 
 class TestFallbacks:

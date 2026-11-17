@@ -7,6 +7,12 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-11-17
+
+Pairs with scitex-clew 0.23.0 (audit-hook capture), which reads
+`project_root`; clew derives the same boundary itself when it is absent,
+so neither package requires the other's new version.
+
 ### Added
 
 - **`project_root` in the start-hook metadata.** The boundary that

@@ -60,12 +60,35 @@ clew on the run record and in `CONFIGS/CONFIG.yaml` as `_PROVENANCE`:
 | `cwd` | working directory (relative paths resolve against it) |
 | `git` | `root`, `commit`, `branch`, `dirty`, `dirty_paths` — or `{"repository": false}` |
 | `packages` | `{distribution: version}` for every imported package |
-| `project_root` | the project boundary: git root, else the script's directory |
+| `project_root` | the project boundary (see *Project root detection* below) |
+| `project_root_source`, `project_root_marker` | which rule chose `project_root` (`argument` / `env` / `git` / `marker` / `cwd` / `script_dir`) and, for `marker`, which marker |
 | `local_modules` | `{path: sha256}` of imported modules inside `project_root` |
 | `python` | interpreter version and executable |
 | `sdir_run`, `sdir_out` | this run's dir and the output base (`<script>_out/`) |
 | `started_at`, `notebook_path` | start time; notebook path for `.ipynb` |
 | `capture_errors` | `{field: error}` for anything that could not be captured |
+
+### Project root detection
+
+`project_root` is where "the project" starts: clew records files under it
+as project inputs/outputs and everything else as **external**. First match
+wins:
+
+1. `@session(project_root="/path")` (or `start(project_root=...)`)
+2. `$SCITEX_SESSION_PROJECT_ROOT`
+3. the git work-tree root holding the script
+4. the nearest ancestor of the script's directory (itself included) with a
+   project marker: `.git`, `.hg`, `.svn`, `pyproject.toml`, `setup.cfg`,
+   `setup.py`, `scitex/.scitex-structure-version`, or **both `scripts/` and
+   `config/`** (the SciTeX research layout) — so a non-git project
+   `p/{config,data,scripts}/` gets `p/` as its root
+5. the working directory, when the script lies below it
+6. the script's own directory — last resort, logged as a WARNING
+
+The upward search stops below `$HOME` (for paths under it) and below `/`,
+and does not cross a mount point. An explicit root must be an existing
+directory (else `ValueError`). `.scitex/` is not a marker: tools create it
+wherever they run (e.g. clew's `<cwd>/.scitex/clew/project-id`).
 
 **Failures are never silent.** A raising hook (or an uncollectable field)
 does not break your run, but it is logged as a WARNING naming the hook,

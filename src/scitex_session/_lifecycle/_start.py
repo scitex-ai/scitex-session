@@ -237,6 +237,7 @@ def start(
     line_width: float = 1.0,
     clear_logs: bool = False,
     verbose: bool = True,
+    project_root: Optional[Union[str, Path]] = None,
 ) -> Tuple[DotDict, Any, Any, Any, Optional[Dict[str, Any]], Any]:
     """Initialize experiment session with reproducibility settings.
 
@@ -269,6 +270,10 @@ def start(
         Whether to use matplotlib Agg backend
     verbose : bool, default=True
         Whether to print detailed information
+    project_root : str or Path, optional
+        Explicit project root (the boundary provenance observers use for
+        "project-local" files). Wins over ``$SCITEX_SESSION_PROJECT_ROOT`` and
+        auto-detection; see :mod:`scitex_session._lifecycle._project_root`.
 
     Returns
     -------
@@ -365,6 +370,7 @@ def start(
         seed=seed,
         sdir_run=sdir,
         sdir_out=derive_sdir_out(sdir),
+        project_root=project_root,
     )
     hook_failures = _start_verification(ID, script_path, metadata)
 

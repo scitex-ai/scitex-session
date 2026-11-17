@@ -20,6 +20,7 @@ import sys
 from pathlib import Path
 
 import pytest
+
 from scitex_session._lifecycle._provenance import collect_run_metadata
 
 GIT = shutil.which("git")
@@ -193,6 +194,31 @@ class TestGitState:
         meta = collect_run_metadata(str(script))
         # Assert
         assert meta["git"] == {"repository": False}
+
+
+@needs_git
+class TestProjectRoot:
+    """The project boundary observers use for "project-local" code and files."""
+
+    def test_project_root_is_the_git_root_for_a_script_in_a_repository(
+        self, git_project
+    ):
+        # Arrange
+        script = git_project / "scripts" / "run.py"
+        # Act
+        meta = collect_run_metadata(str(script))
+        # Assert
+        assert meta["project_root"] == str(git_project.resolve())
+
+    def test_project_root_is_the_script_dir_outside_any_repository(self, tmp_path):
+        # Arrange
+        script = tmp_path / "loose" / "s.py"
+        script.parent.mkdir()
+        script.write_text("")
+        # Act
+        meta = collect_run_metadata(str(script))
+        # Assert
+        assert meta["project_root"] == str(script.parent.resolve())
 
 
 @needs_git

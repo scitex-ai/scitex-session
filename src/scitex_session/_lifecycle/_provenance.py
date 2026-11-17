@@ -20,9 +20,14 @@ Field names (stable; observers may read them):
                    "dirty", "dirty_paths"}`` for the repo holding the script
 ``packages``       ``{distribution: version}`` for every imported top-level
                    module that belongs to an installed distribution
+``project_root``   the script's project: the git root, else the script's
+                   directory (``None`` when neither is known). The boundary
+                   ``local_modules`` uses; observers that capture file access
+                   (scitex-clew) use the same boundary, so "project-local"
+                   means one thing across packages
 ``local_modules``  ``{abs_path: sha256}`` for imported modules that live in
-                   the script's project (git root, else script dir), i.e. code
-                   inputs that are not pinned by a package version
+                   ``project_root``, i.e. code inputs that are not pinned by a
+                   package version
 ``sdir_run``       this run's own directory (``.../RUNNING/<ID>/``)
 ``sdir_out``       the script's output base (where ``stx.io.save`` writes)
 ``started_at``     ISO-8601 start time
@@ -114,6 +119,7 @@ def collect_run_metadata(
         meta["git"] = git_info
 
     project_root = _project_root(git_info, script)
+    meta["project_root"] = str(project_root) if project_root is not None else None
     collectors: Dict[str, Callable[[], Any]] = {
         "packages": lambda: _package_versions(modules),
         "local_modules": lambda: _local_module_hashes(modules, project_root, script),

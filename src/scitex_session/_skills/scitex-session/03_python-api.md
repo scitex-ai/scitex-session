@@ -65,8 +65,32 @@ clew on the run record and in `CONFIGS/CONFIG.yaml` as `_PROVENANCE`:
 | `local_modules` | `{path: sha256}` of imported modules inside `project_root` |
 | `python` | interpreter version and executable |
 | `sdir_run`, `sdir_out` | this run's dir and the output base (`<script>_out/`) |
-| `started_at`, `notebook_path` | start time; notebook path for `.ipynb` |
+| `started_at`, `notebook_path` | start time; the notebook a Jupyter-kernel session ran in |
+| `entry` | how the run was entered; in a kernel `{"kind": "notebook", "path", "path_source", "invocation", "code_sha256", ...}` (see *Notebooks*) |
 | `capture_errors` | `{field: error}` for anything that could not be captured |
+
+### Notebooks (Jupyter kernels)
+
+`@session` works when the decorated function is called in a notebook cell
+(`main()`), or from a project script the notebook runs with
+`%run ../scripts/x.py --n 5`:
+
+- the kernel's own `sys.argv` (`-f <connection file>`) is never parsed —
+  the function's defaults apply; under `%run` the script's arguments are;
+- the session's script is the **notebook**, resolved from
+  `$SCITEX_NOTEBOOK_PATH` > VS Code / Jupyter-server globals
+  (`__vsc_ipynb_file__`, `__session__`, `$JPY_SESSION_NAME`) > a `*.ipynb`
+  on the launching process's command line (nbconvert / papermill; accepted
+  only if it contains the executing cell) > a Jupyter server query. It anchors
+  the project root and `<notebook>_out/`. Unresolved: recorded without a code
+  file (WARNING; set `$SCITEX_NOTEBOOK_PATH`), outputs under
+  `<cwd>/notebook_out/`;
+- `entry` records `path`, `path_source`, `invocation` (`cell` | `run` |
+  `file`), `code_sha256` (code cells only, scheme `ipynb-code-v1` — stable
+  when the notebook is re-executed or saved with outputs), `sha256` (file),
+  and the executed-cell history (`executed_cells`, `executed_in_order`;
+  unsaved cells are WARNED). A reproducible record is a saved notebook run
+  top to bottom (`jupyter nbconvert --to notebook --execute a.ipynb`).
 
 ### Project root detection
 

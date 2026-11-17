@@ -5,12 +5,11 @@
 
 from __future__ import annotations
 
-import inspect
-import logging
 import os as _os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from scitex_dev import try_import_optional
 from scitex_dict import DotDict
 from scitex_logging import getLogger
 from scitex_repro import RandomStateManager
@@ -18,9 +17,19 @@ from scitex_str import clean_path
 
 from .._hooks import _fire_session_close_hooks, _fire_session_start_hooks
 from .._manager import get_global_session_manager
+from ._caller import (  # noqa: F401 - re-exported (tests, _decorator)
+    _INTERNAL_MODULE_PREFIXES,
+    _cli_argv,
+    _find_user_caller,
+    _find_user_caller_file,
+    _is_internal_frame_file,
+    _is_internal_module_name,
+    _is_own_package_file,
+)
 from ._config import derive_sdir_out, setup_configs
-from ._matplotlib import setup_matplotlib
 from ._entry import detect_entry
+from ._io_scope import close_io_scope, open_io_scope
+from ._matplotlib import setup_matplotlib
 from ._provenance import collect_run_metadata
 from ._utils import (
     clear_python_log_dir,
@@ -33,8 +42,6 @@ from ._utils import (
 logger = getLogger(__name__)
 
 # For development code flow analysis
-from scitex_dev import try_import_optional
-
 analyze_code_flow = try_import_optional(
     "scitex_dev._analyze_code_flow", "analyze_code_flow"
 )
@@ -44,115 +51,36 @@ if analyze_code_flow is None:
         return "Code flow analysis not available"
 
 
-# Top-level module-name prefixes whose frames belong to the SciTeX
-# session/dev plumbing (decorators, wrappers, MCP bridges, …). When
-# walking the call stack to find the *user's* script we skip frames
-# whose module name starts with any of these — they are intermediate
-# wrappers, not the real caller. ``scitex_session`` self-skip handles
-# the @stx.session wrapper chain; ``scitex_dev`` handles agent /
-# harness / decorator layers that wrap @stx.session further. We match
-# on module names (via ``inspect.getmodule``) rather than filename
-# substrings so that the ``tests/scitex_session/`` test tree (whose
-# *files* contain ``/scitex_session/`` but whose *module* names are
-# ``tests.scitex_session.…``) is not falsely flagged as internal.
-_INTERNAL_MODULE_PREFIXES: Tuple[str, ...] = (
-    "scitex_session.",
-    "scitex_session",
-    "scitex_dev.",
-    "scitex_dev",
-)
-
-
-def _is_internal_module_name(modname: Optional[str]) -> bool:
-    """Return True iff ``modname`` is a scitex_session / scitex_dev
-    plumbing module (i.e. an intermediate wrapper frame, not the
-    user's script)."""
-    if not modname:
-        return False
-    return any(
-        modname == prefix.rstrip(".") or modname.startswith(prefix)
-        for prefix in _INTERNAL_MODULE_PREFIXES
-    )
-
-
-def _is_internal_frame_file(path: str) -> bool:
-    """Filename-based fallback used when a frame has no resolvable
-    module (e.g. dynamically-exec'd code). Matches an *installed* or
-    src-tree package path — does NOT match ``tests/scitex_session/``
-    paths because those are below a ``tests`` parent, not a package
-    init."""
-    if not path:
-        return True
-    norm = path.replace("\\", "/")
-    # Match "/scitex_session/_..." or "/scitex_dev/_..." (underscored
-    # internal submodules), or "/site-packages/scitex_session/" /
-    # "/site-packages/scitex_dev/" (installed package frames). The
-    # tests/scitex_session/ tree does NOT match either pattern.
-    for pkg in ("scitex_session", "scitex_dev"):
-        if f"/site-packages/{pkg}/" in norm:
-            return True
-        if f"/src/{pkg}/" in norm:
-            return True
-    return False
-
-
-def _find_user_caller_file(hint: Optional[str] = None) -> Optional[str]:
-    """Resolve the user's script path by walking the call stack outward.
-
-    Walks ``inspect.stack()`` from innermost to outermost and returns
-    the filename of the first frame whose module name does NOT start
-    with ``scitex_session`` / ``scitex_dev`` (i.e. is not an
-    intermediate plumbing frame). The optional ``hint`` (typically the
-    ``file=`` parameter that the @stx.session wrapper threads through)
-    is used when it is a non-internal path; if the hint itself points
-    at an internal wrapper file (the bug operator hit on neurovista —
-    the figure landed in ``site-packages/.../decorators_out/`` because
-    the wrapper's ``__file__`` was used) we discard it and walk
-    instead.
-
-    Returns ``None`` when no user frame exists — the session was entered
-    from ``python -c``, stdin or a REPL, whose code has no file. It never
-    falls back to a package-internal frame: attributing the run to the
-    session library's own module recorded that module as the run's script
-    (scitex-session#65).
-    """
-    if hint and not _is_internal_frame_file(hint) and not _is_own_package_file(hint):
-        return hint
-
-    for frame_info in inspect.stack():
-        candidate = frame_info.filename or ""
-        # Skip transient stdlib / runpy frames that are also not the user.
-        if candidate.startswith("<"):  # "<string>", "<stdin>", "<frozen ...>"
-            continue
-        mod = inspect.getmodule(frame_info.frame)
-        modname = getattr(mod, "__name__", None)
-        if _is_internal_module_name(modname):
-            continue
-        # When the frame has no resolvable module (rare; dynamically
-        # exec'd code), fall back to the filename heuristic.
-        if modname is None and _is_internal_frame_file(candidate):
-            continue
-        if _is_own_package_file(candidate):
-            continue
-        return candidate
-    return None
-
-
-def _is_own_package_file(path: str) -> bool:
-    """True for a file inside the imported scitex_session package."""
-    if not path:
-        return False
-    package_dir = _os.path.dirname(_os.path.dirname(_os.path.realpath(__file__)))
-    real = _os.path.realpath(path)
-    return real == package_dir or real.startswith(package_dir + _os.sep)
-
-
 #: Output-anchor stems for sessions entered without a script file.
 _ENTRY_ANCHORS = {
     "command": "python_c",
     "stdin": "python_stdin",
     "interactive": "python_interactive",
+    # a kernel whose notebook could not be resolved: ``<cwd>/notebook_out/``,
+    # where scitex-io saves from such a notebook too
+    "notebook": "notebook",
 }
+
+
+def _notebook_entry(entry: Dict[str, Any], invocation: str) -> Dict[str, Any]:
+    """``entry`` (kind ``notebook``) completed with the notebook's identity.
+
+    Resolution failure is not fatal: the run is recorded without a code file
+    (``path: None`` + ``path_unresolved``), and a WARNING says how to name the
+    notebook. See :mod:`._notebook`.
+    """
+    from ._notebook import NOTEBOOK_PATH_ENV, notebook_entry, resolve_notebook
+
+    fields = notebook_entry(resolve_notebook(), invocation)
+    if fields.get("path") is None:
+        logger.warning(
+            "scitex-session: could not tell which notebook this kernel is running "
+            "(%s); the session is recorded WITHOUT its code file and its outputs "
+            "go to <cwd>/notebook_out/. Set $%s=<path to the .ipynb> for the kernel.",
+            fields.get("path_unresolved"),
+            NOTEBOOK_PATH_ENV,
+        )
+    return {**entry, **fields}
 
 
 def _entry_anchor(entry: Dict[str, Any]) -> str:
@@ -305,23 +233,13 @@ def start(
         # knows the user's path, e.g. notebook integrations) is used as
         # a hint, but if it still points at an internal scitex frame
         # we override it with the walked result.
-        caller_file = _find_user_caller_file(hint=file)
+        caller_file, invocation = _find_user_caller(hint=file)
         script_path = caller_file
-        if caller_file is not None and "ipython" in caller_file.lower():
-            try:
-                from scitex_context import get_notebook_path
-
-                nb_path = get_notebook_path()
-            except Exception as e:
-                nb_path = None
-                logger.warning(
-                    "scitex-session: could not resolve the notebook path "
-                    "(%s: %s); the session is recorded without a script file",
-                    type(e).__name__,
-                    e,
-                )
-            script_path = nb_path or None
-            caller_file = nb_path or f"/tmp/{_os.getenv('USER')}.py"
+        if entry.get("kind") == "notebook":
+            # A Jupyter kernel: the code is the notebook (see _notebook.py).
+            entry = _notebook_entry(entry, invocation or "cell")
+            if invocation in (None, "cell"):
+                script_path = caller_file = entry.get("path")
 
         if caller_file is None:
             # ``python -c`` / stdin / REPL: no script file to record.
@@ -341,6 +259,8 @@ def start(
     else:
         caller_file = file
         script_path = file
+        if entry.get("kind") == "notebook":
+            entry = _notebook_entry(entry, "file" if file else "cell")
 
     if clear_logs and caller_file:
         clear_python_log_dir(sdir + caller_file + "/")
@@ -354,10 +274,16 @@ def start(
         from scitex_logging import tee
 
         flush(sys)
+        # What close() puts back: a process that outlives the session (a
+        # notebook kernel) must not keep writing through the closed tee — in
+        # ipykernel that silently routed every later cell's output to the
+        # finished cell (the tee has no ``set_parent``).
+        restore = {"streams": (sys.stdout, sys.stderr)}
         sys.stdout, sys.stderr = tee(sys, sdir=sdir, verbose=verbose)
+        restore["tees"] = (sys.stdout, sys.stderr)
 
         # Redirect logging handlers to use the tee-wrapped streams
-        _redirect_logging_handlers(sys)
+        restore["handlers"] = _redirect_logging_handlers(sys)
 
     # Open the provenance record BEFORE loading ./config/*.yaml: config files
     # determine results, and they are read through ``scitex_io.load`` whose
@@ -373,6 +299,10 @@ def start(
         project_root=project_root,
     )
     hook_failures = _start_verification(ID, script_path, metadata)
+    # The run's recording window for scitex-io: its load/save hook payloads
+    # carry ``in_scope`` and its lost-provenance events are tallied per run
+    # (reported at close as ``io_provenance``).
+    open_io_scope(ID)
 
     # Setup configs - use caller_file (computed) instead of file (parameter)
     try:
@@ -383,10 +313,12 @@ def start(
         # The run record is open; close it as failed instead of leaving it
         # dangling in "running" state, then let the config error propagate.
         _fire_session_close_hooks(status="failed", exit_code=1)
+        close_io_scope(ID)
         raise
 
     if sys is not None:
         CONFIGS["_sys"] = sys
+        CONFIGS["_sys_restore"] = restore
     CONFIGS["_PROVENANCE"] = metadata
     CONFIGS["_HOOK_FAILURES"] = hook_failures
 
@@ -424,9 +356,7 @@ def start(
         ID, CONFIGS, script_path=script_path, fire_hooks=False
     )
 
-    print_header(
-        ID, PID, script_path or f"<{entry['kind']}>", args, CONFIGS, verbose
-    )
+    print_header(ID, PID, script_path or f"<{entry['kind']}>", args, CONFIGS, verbose)
 
     if show_execution_flow and script_path:
         from scitex_str import printc as _printc
@@ -441,38 +371,34 @@ def start(
         return CONFIGS, None, None, plt, COLORS, rng
 
 
-def _redirect_logging_handlers(sys) -> None:
-    """Redirect logging handlers to use tee-wrapped streams."""
-    # Update all existing StreamHandler instances
-    for logger_name in list(logging.Logger.manager.loggerDict.keys()):
-        try:
-            lgr = getLogger(logger_name)
-            for handler in lgr.handlers:
-                if isinstance(handler, logging.StreamHandler):
-                    if not hasattr(handler, "stream"):
-                        continue
-                    if handler.stream in (sys.__stderr__, sys.__stdout__):
-                        handler.stream = (
-                            sys.stderr
-                            if handler.stream == sys.__stderr__
-                            else sys.stdout
-                        )
-        except Exception:
-            pass
+def _redirect_logging_handlers(sys) -> list:
+    """Point StreamHandlers at the tee-wrapped streams.
 
-    # Also update the root logger handlers
-    try:
-        root_logger = getLogger()
-        for handler in root_logger.handlers:
-            if isinstance(handler, logging.StreamHandler):
-                if not hasattr(handler, "stream"):
-                    continue
-                if handler.stream in (sys.__stderr__, sys.__stdout__):
-                    handler.stream = (
-                        sys.stderr if handler.stream == sys.__stderr__ else sys.stdout
-                    )
-    except Exception:
-        pass
+    Returns ``[(handler, previous stream)]`` so close() can put them back.
+    """
+    import logging as _logging
+
+    changed = []
+    handlers = [getLogger().handlers]
+    for name in list(_logging.Logger.manager.loggerDict.keys()):
+        try:
+            handlers.append(getLogger(name).handlers)
+        except Exception:  # noqa: BLE001 - a broken logger is not ours to fix
+            continue
+    seen = set()
+    for group in handlers:
+        for handler in group:
+            if id(handler) in seen or not isinstance(handler, _logging.StreamHandler):
+                continue
+            seen.add(id(handler))
+            stream = getattr(handler, "stream", None)
+            if stream is sys.__stderr__:
+                changed.append((handler, stream))
+                handler.stream = sys.stderr
+            elif stream is sys.__stdout__:
+                changed.append((handler, stream))
+                handler.stream = sys.stdout
+    return changed
 
 
 def _start_verification(

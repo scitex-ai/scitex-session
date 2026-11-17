@@ -29,6 +29,7 @@ def scitex_utils_notify(*args, **kwargs):
 
 from .._manager import get_global_session_manager
 from ._config import save_configs
+from ._io_scope import close_io_scope
 from ._utils import args_to_str, escape_ansi_from_log_files, process_timestamp
 
 logger = getLogger(__name__)
@@ -217,6 +218,7 @@ def close(
     """
     sys = None
     hooks_fired = False
+    session_id = CONFIG.get("ID")
     try:
         CONFIG.EXIT_STATUS = exit_status
         # include_private: keep ``_PROVENANCE`` / ``_HOOK_FAILURES`` for
@@ -226,6 +228,7 @@ def close(
         CONFIG = CONFIG.to_dict(include_private=True)
         CONFIG = process_timestamp(CONFIG, verbose=verbose)
         sys = CONFIG.pop("_sys", None)
+        restore = CONFIG.pop("_sys_restore", None)
 
         # CRITICAL: Close matplotlib BEFORE closing streams to prevent segfault
         _cleanup_matplotlib(verbose)
@@ -314,9 +317,26 @@ def close(
         # otherwise stay "running" forever).
         if not hooks_fired:
             _stop_verification(exit_status, None)
+        close_io_scope(session_id)
         # Only close if they're custom file objects (Tee objects)
         if sys:
             _close_streams(sys)
+            _restore_streams(sys, restore)
+
+
+def _restore_streams(sys, restore) -> None:
+    """Put back the streams and logging handlers start() replaced."""
+    if not restore:
+        return
+    stdout, stderr = restore.get("streams") or (None, None)
+    tee_out, tee_err = restore.get("tees") or (None, None)
+    # only where our tee is still installed (a caller may have swapped it)
+    if stdout is not None and sys.stdout is tee_out:
+        sys.stdout = stdout
+    if stderr is not None and sys.stderr is tee_err:
+        sys.stderr = stderr
+    for handler, stream in restore.get("handlers") or []:
+        handler.stream = stream
 
 
 def _real_dir(path) -> str:
@@ -342,6 +362,8 @@ def _close_metadata(CONFIG, relocations, final_dir) -> dict:
         relocations=relocations,
         sdir_run_final=final_dir,
     )
+    # scitex-io's lost-provenance tally for this run (see _io_scope.py)
+    meta["io_provenance"] = close_io_scope(CONFIG.get("ID"))
     if isinstance(start, dict):
         merged = dict(start)
         merged.update(meta)

@@ -7,6 +7,27 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.7] - 2026-11-18
+
+No scitex-clew change is required: clew's capture already takes `project_root`
+from the start metadata. Aligning clew's own project-scope walk is a clew-side
+follow-up (see #72).
+
+### Fixed
+
+- **Project root no longer collapses to `scripts/` outside git (#71).** For a
+  project that is not a git repository, `project_root` was the entry
+  script's directory, so the project's own `data/`, `config/` and sibling
+  code were recorded by clew as EXTERNAL inputs. The root is now resolved in
+  a documented order: `@session(project_root=...)` >
+  `$SCITEX_SESSION_PROJECT_ROOT` > git root > nearest ancestor with a project
+  marker (`.git`, `.hg`, `.svn`, `pyproject.toml`, `setup.cfg`, `setup.py`,
+  `scitex/.scitex-structure-version`, or `scripts/` + `config/`) > the
+  working directory when it contains the script > the script's directory
+  (with a WARNING). The search never reaches `$HOME` or `/` and does not
+  cross a mount point. The chosen rule is recorded as `project_root_source`
+  (and `project_root_marker`). Git projects are unchanged.
+
 ## [0.3.6] - 2026-11-17
 
 Pairs with scitex-clew >= 0.23.0, whose `on_session_close(..., metadata=)`

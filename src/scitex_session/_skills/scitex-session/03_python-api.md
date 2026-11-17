@@ -60,7 +60,8 @@ clew on the run record and in `CONFIGS/CONFIG.yaml` as `_PROVENANCE`:
 | `cwd` | working directory (relative paths resolve against it) |
 | `git` | `root`, `commit`, `branch`, `dirty`, `dirty_paths` — or `{"repository": false}` |
 | `packages` | `{distribution: version}` for every imported package |
-| `local_modules` | `{path: sha256}` of imported modules inside the project |
+| `project_root` | the project boundary: git root, else the script's directory |
+| `local_modules` | `{path: sha256}` of imported modules inside `project_root` |
 | `python` | interpreter version and executable |
 | `sdir_run`, `sdir_out` | this run's dir and the output base (`<script>_out/`) |
 | `started_at`, `notebook_path` | start time; notebook path for `.ipynb` |

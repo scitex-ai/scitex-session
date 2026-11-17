@@ -7,6 +7,14 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **`project_root` in the start-hook metadata.** The boundary that
+  `local_modules` already used (git root, else the script's directory) is now
+  sent explicitly, so a provenance observer that captures file access and
+  imported code (scitex-clew's audit-hook capture) uses the same definition of
+  "project-local" as the session. `None` when no boundary is known.
+
 ## [0.3.4] - 2026-11-16
 
 First published release of the 0.3.3 changes below (the `v0.3.3` tag was

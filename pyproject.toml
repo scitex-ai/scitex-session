@@ -31,7 +31,7 @@ dependencies = [
     # Lifecycle modules import the shared optional-import helper at runtime.
     "scitex-dev>=0.62.28",
     "scitex-repro>=0.1.0",
-    "scitex-str>=0.1.0",
+    "scitex-str>=0.1.14",  # import without pandas/xarray (start-up cost)
     # >=0.5.0: ``scitex_io.provenance_scope`` (the session opens one per run)
     "scitex-io>=0.5.0",
     # _lifecycle/_start.py resolves the notebook path via

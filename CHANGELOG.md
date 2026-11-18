@@ -7,6 +7,41 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Performance
+
+`@session` start + close for a do-nothing script: 3.46 s -> 0.77 s (median of
+7, plain venv, scitex-clew stubbed), with the same provenance record. Causes
+(found by profiling, paper-scitex-clew E5 finding 4):
+
+- `print_header` slept `sleep(1)` twice per session (2 s). Removed.
+- The environment capture and the caller walk read `module.__file__` with
+  `getattr` on every `sys.modules` entry (the walk via `inspect.getmodule`),
+  which EXECUTED every not-yet-loaded `importlib.util.LazyLoader` module and
+  every moved-module alias (`figrecipe._validator` & co.: imports plus a
+  `DeprecationWarning` in every run log). Module attributes are now read from
+  the module's own `__dict__` without running hooks; a lazy module still
+  carries its `__file__` there, so what is recorded is unchanged.
+- `inspect.stack()` (source context for every frame) replaced by a plain
+  frame walk.
+- The distribution index is scanned once per session (reused at close unless
+  a `sys.path` directory changed, i.e. something was installed), METADATA
+  names are parsed once, and module paths are resolved with a per-directory
+  realpath cache.
+- The `--help` epilog (figrecipe colour keys, `./config/*.yaml` listing) is
+  built only when help is rendered.
+- Requires `scitex-str>=0.1.14`, whose import no longer pulls pandas/xarray.
+- `package_provenance`: imported distributions are examined on 8 threads
+  (per-file stats overlap; 0.44 s -> ~0.15 s on a squashfs/FUSE image).
+
+### Tests
+
+- `tests/scitex_session/_lifecycle/test__environment.py`, `test__caller.py`,
+  `tests/scitex_session/_decorator/test__run.py`: CI-robust guards
+  (no wall-clock) — no lazy module executed and no `__getattr__` hook called
+  by the capture or the caller walk; a do-nothing session imports none of
+  pandas/xarray/pyarrow/scipy/playwright/docx/torch and fires no moved-module
+  deprecation; a distribution installed mid-run is still attributed at close.
+
 ## [0.5.0] - 2026-11-18
 
 Minor release: new run-metadata field `package_provenance` (PR #83), which

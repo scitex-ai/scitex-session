@@ -96,18 +96,22 @@ import os
 import shutil
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional
 
 from scitex_logging import getLogger
 
-from ._entry import detect_entry
 from ._dist_provenance import distribution_provenance
+from ._entry import detect_entry
 from ._environment import _imported_distributions, _local_module_hashes
 from ._project_root import resolve_project_root
 
 logger = getLogger(__name__)
+
+#: Threads examining imported distributions (I/O bound: reads and stats).
+_PROVENANCE_WORKERS = 8
 
 _GIT_TIMEOUT_S = 30
 _MAX_DIRTY_PATHS = 500
@@ -277,10 +281,21 @@ def _collect_environment(
         dists, meta["unresolved_imports"] = env
         meta["packages"] = {name: dist.version for name, dist in dists.items()}
         known = known_provenance or {}
-        meta["package_provenance"] = {
-            name: _dist_provenance_or_error(name, dist, errors)
+        todo = [
+            (name, dist)
             for name, dist in dists.items()
             if (known.get(name) or {}).get("version") != dist.version
+        ]
+        # One stat per installed file of every imported distribution
+        # (``modified_files``): ~15k stats for a scientific stack, which is
+        # 0.5-1 s serially on a FUSE/squashfs image or a network filesystem.
+        # The stats wait on I/O (the GIL is released), so overlap them.
+        with ThreadPoolExecutor(max_workers=_PROVENANCE_WORKERS) as pool:
+            infos = list(
+                pool.map(lambda item: _dist_provenance_or_error(*item, errors), todo)
+            )
+        meta["package_provenance"] = {
+            name: info for (name, _dist), info in zip(todo, infos)
         }
     local = _capture(
         "local_modules",

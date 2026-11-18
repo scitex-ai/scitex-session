@@ -35,7 +35,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ### Tests
 
-- `tests/scitex_session/_lifecycle/test__startup_cost.py`: CI-robust guards
+- `tests/scitex_session/_lifecycle/test__environment.py`, `test__caller.py`,
+  `tests/scitex_session/_decorator/test__run.py`: CI-robust guards
   (no wall-clock) — no lazy module executed and no `__getattr__` hook called
   by the capture or the caller walk; a do-nothing session imports none of
   pandas/xarray/pyarrow/scipy/playwright/docx/torch and fires no moved-module

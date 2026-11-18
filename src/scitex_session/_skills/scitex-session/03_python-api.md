@@ -60,6 +60,7 @@ clew on the run record and in `CONFIGS/CONFIG.yaml` as `_PROVENANCE`:
 | `cwd` | working directory (relative paths resolve against it) |
 | `git` | `root`, `commit`, `branch`, `dirty`, `dirty_paths` — or `{"repository": false}` |
 | `packages` | `{distribution: version}` for every imported package |
+| `package_provenance` | per imported distribution: PEP 610 install `source` (`index` / `editable` / `local_dir` / `local_archive` / `remote_archive` / `vcs`, with `url` / `commit_id` / `archive_hash`), `installer`, a content `fingerprint` (`sha256:` over the wheel-shipped `RECORD` entries — same wheel, same fingerprint; a patched rebuild of the same version differs) and `modified_files` (installed files edited/deleted since installation). A version alone cannot tell a local build from the index release; this can |
 | `project_root` | the project boundary (see *Project root detection* below) |
 | `project_root_source`, `project_root_marker` | which rule chose `project_root` (`argument` / `env` / `git` / `marker` / `cwd` / `script_dir`) and, for `marker`, which marker |
 | `local_modules` | `{path: sha256}` of imported modules inside `project_root` |

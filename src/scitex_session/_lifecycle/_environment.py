@@ -148,10 +148,11 @@ def _distribution_index() -> Tuple[Dict[str, List[Any]], List[Tuple[Path, Any]]]
 
 def _imported_distributions(
     modules: Mapping[str, Any], project_root: Optional[Path]
-) -> Tuple[Dict[str, str], Dict[str, str]]:
+) -> Tuple[Dict[str, Any], Dict[str, str]]:
     """Distributions behind every imported top-level module.
 
-    Returns ``(packages, unresolved)``: ``{dist: version}`` and
+    Returns ``(dists, unresolved)``: ``{name: importlib.metadata.Distribution}``
+    (the copy Python imports when several are installed) and
     ``{module: location}`` for imported modules that are not stdlib, not
     project code and not attributable to any installed distribution.
     """
@@ -160,14 +161,14 @@ def _imported_distributions(
     search_roots = [
         Path(entry).resolve() for entry in sys.path if entry and _is_installed(Path(entry))
     ]
-    packages: Dict[str, str] = {}
+    dists: Dict[str, Any] = {}
     unresolved: Dict[str, str] = {}
 
     def add(owners: Iterable[Any]) -> None:
         for dist in owners:
             name = dist.metadata["Name"]
             if name:  # first on sys.path wins, as on import
-                packages.setdefault(name, dist.version)
+                dists.setdefault(name, dist)
 
     for name in sorted({key.split(".", 1)[0] for key in list(modules)}):
         if name in _NOT_A_MODULE:
@@ -205,7 +206,7 @@ def _imported_distributions(
             add(owners)
             continue
         unresolved[name] = str(location)
-    return dict(sorted(packages.items())), unresolved
+    return dict(sorted(dists.items())), unresolved
 
 
 def _dist_base(dist: Any) -> Path:

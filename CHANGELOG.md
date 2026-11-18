@@ -7,6 +7,40 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-18
+
+Minor release: new run-metadata field `package_provenance` (PR #83), which
+scitex-clew >= 0.27.0 reads to flag environment requirements that are not
+reproducible from the record.
+
+### Added
+
+- **Install provenance + content fingerprint of imported distributions**
+  (run metadata field `package_provenance`). `packages` records
+  `{distribution: version}`, which cannot tell a dependency patched and
+  rebuilt locally from the index release of the same version: a replay that
+  installs the index release then runs other code (seen in a real replay).
+  Per imported distribution the record now carries:
+  - `source` from PEP 610 `direct_url.json`: `index` (no `direct_url.json`),
+    `editable`, `local_dir`, `local_archive`, `remote_archive` or `vcs`,
+    with `url` / `commit_id` / `archive_hash`; and `installer`;
+  - `fingerprint` (`sha256:`, scheme `record-sha256-v1`) over the
+    wheel-shipped `RECORD` entries (`path,hash` lines, sorted), leaving out
+    what the installer writes (`.pyc`, `INSTALLER` / `REQUESTED` /
+    `direct_url.json` / `RECORD`, `../bin` scripts). Each entry carries the
+    hash the wheel builder computed and the installer checked, so the same
+    wheel gives the same fingerprint under pip/uv, compiled or not, on any
+    machine, and a rebuilt wheel with one changed file differs. One small
+    file read per distribution;
+  - `modified_files`: installed files whose content no longer matches their
+    `RECORD` hash (an index install edited in place keeps version and
+    fingerprint). One `stat` per file; a file is hashed only when its size
+    differs or it is newer than `RECORD`.
+  Each distribution is examined once per run (at start, or at close for one
+  imported later). Measured ~1-2 ms per distribution (528 dists: 0.9 s; an
+  18k-file distribution ~0.1 s). A failure is recorded per distribution in
+  `capture_errors`, never silently dropped.
+
 ## [0.4.0] - 2026-11-18
 
 Minor release: a `@session` inside a Jupyter kernel works and records its

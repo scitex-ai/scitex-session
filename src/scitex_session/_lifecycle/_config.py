@@ -96,9 +96,17 @@ def save_configs(CONFIG) -> None:
     from scitex_io import save as scitex_io_save
 
     # Convert to dict with all keys (including private ones) for saving
-    config_dict = (
+    config_dict = dict(
         CONFIG.to_dict(include_private=True) if hasattr(CONFIG, "to_dict") else CONFIG
     )
+    # The environment provenance is the same for every run in the same
+    # environment: store it once per project and keep a hash reference in
+    # this run's record (see _env_store). The in-memory CONFIG keeps it inline.
+    provenance = config_dict.get("_PROVENANCE")
+    if isinstance(provenance, dict):
+        from ._env_store import externalize_package_provenance
+
+        config_dict["_PROVENANCE"] = externalize_package_provenance(provenance)
 
     # track=False: Don't track internal config files in verification DB
     scitex_io_save(

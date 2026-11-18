@@ -124,6 +124,8 @@ _LAZY_ATTRS = {
     "restore_session_archive": ("._lifecycle", "restore_session_archive"),
     "archive_existing": ("._lifecycle", "archive_existing"),
     "restore_existing": ("._lifecycle", "restore_existing"),
+    # Read a finished run's provenance record (environment resolved)
+    "load_run_provenance": ("._lifecycle", "load_run_provenance"),
     # Advanced session management
     "SessionManager": ("._manager", "SessionManager"),
     # INTERNAL low-level entry points (power-user aliases). Same callables
@@ -309,6 +311,8 @@ __all__ = [
     "restore_session_archive",
     "archive_existing",
     "restore_existing",
+    # Run-record reader
+    "load_run_provenance",
     # Lifecycle-hook registry (acyclic observer seam for clew et al.)
     "register_session_start_hook",
     "register_session_close_hook",

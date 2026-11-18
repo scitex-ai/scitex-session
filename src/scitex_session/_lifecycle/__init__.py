@@ -23,6 +23,7 @@ _LAZY_EXPORTS = {
     "restore_session_archive": ("._archive", "restore_session_archive"),
     "archive_existing": ("._archive", "archive_existing"),
     "restore_existing": ("._archive", "restore_existing"),
+    "load_run_provenance": ("._env_store", "load_run_provenance"),
 }
 
 
@@ -48,6 +49,7 @@ __all__ = [
     "restore_session_archive",
     "archive_existing",
     "restore_existing",
+    "load_run_provenance",
 ]
 
 # EOF

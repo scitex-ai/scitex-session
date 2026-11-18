@@ -102,21 +102,42 @@ sequenceDiagram
 
 ## Quick Start
 
+```yaml
+# config/ANALYSIS.yaml  ->  CONFIG.ANALYSIS.THRESHOLD
+THRESHOLD: 0.5
+```
+
 ```python
 import scitex_session as sess
 
 @sess.session
 def main(
-    param1="default",
+    data_path="data.csv",      # --data-path: an input, not a parameter
     CONFIG=sess.INJECTED,
     plt=sess.INJECTED,
     logger=sess.INJECTED,
     rng=sess.INJECTED,
 ):
     """Docstring becomes --help."""
-    logger.info("hi")
+    logger.info(f"{data_path}: threshold={CONFIG.ANALYSIS.THRESHOLD}")
     return 0
+
+
+if __name__ == "__main__":
+    main()
 ```
+
+```bash
+python my_script.py --data-path subject01.csv   # run where config/ lives
+```
+
+Analysis parameters live in `./config/*.yaml` (resolved against the working
+directory), not in `main()` signature defaults or on the command line: the
+file stem is the namespace and keys are upper-cased (`CONFIG.ANALYSIS.THRESHOLD`).
+CLI arguments are for inputs such as paths or subject ids; there is no CLI
+override for `CONFIG` values. `scitex-dev` >= 0.64.0 lint rule STX-S008 flags
+numeric `main()` defaults. Runnable: [`examples/quickstart.py`](examples/quickstart.py)
+with [`examples/config/QUICKSTART.yaml`](examples/config/QUICKSTART.yaml).
 
 ## Project root
 

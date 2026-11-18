@@ -7,6 +7,12 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-18
+
+Minor release: new run-metadata field `package_provenance` (PR #83), which
+scitex-clew >= 0.27.0 reads to flag environment requirements that are not
+reproducible from the record.
+
 ### Added
 
 - **Install provenance + content fingerprint of imported distributions**

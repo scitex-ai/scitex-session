@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -184,7 +185,8 @@ def _dist(site: Path):
 
 @pytest.fixture(scope="session")
 def sites(pip_env):
-    """One real ``site-packages`` per install route / later modification."""
+    """One real ``site-packages`` per install route (never modified: tests
+    that edit an installation work on a copy, see ``modified``)."""
     base = pip_env["base"]
     release, patched = pip_env["release_wheels"], pip_env["patched_wheels"]
     wheel = next(release.glob("*.whl"))
@@ -202,20 +204,40 @@ def sites(pip_env):
         "local_wheel": site("local_wheel", str(wheel)),
         "editable": site("editable", "-e", str(pip_env["release"])),
     }
-    for label in ("edited", "touched", "deleted"):
-        out[label] = site(label, "--find-links", str(release), NAME)
-    time.sleep(0.01)
-    (out["edited"] / NAME / "__init__.py").write_text("VALUE = 9\n")  # same size
-    future = time.time() + 60
-    os.utime(out["touched"] / NAME / "__init__.py", (future, future))
-    (out["deleted"] / NAME / "__init__.py").unlink()
     return out
 
 
 @pytest.fixture(scope="session")
 def prov(sites):
     """``distribution_provenance`` of the probe in every site."""
-    return {label: distribution_provenance(_dist(site)) for label, site in sites.items()}
+    return {
+        label: distribution_provenance(_dist(site)) for label, site in sites.items()
+    }
+
+
+def _modify(site: Path, how: str) -> None:
+    target = site / NAME / "__init__.py"
+    if how == "edited":
+        target.write_text("VALUE = 9\n")  # same size as the release
+    elif how == "touched":
+        future = time.time() + 60
+        os.utime(target, (future, future))
+    elif how == "deleted":
+        target.unlink()
+
+
+@pytest.fixture
+def modified(sites, tmp_path):
+    """Provenance of a per-test copy of the intact index install after an
+    edit / touch / delete (``copytree`` keeps the installed mtimes)."""
+
+    def make(how: str) -> dict:
+        site = tmp_path / how / "lib" / "site-packages"
+        shutil.copytree(sites["index"], site)
+        _modify(site, how)
+        return distribution_provenance(_dist(site))
+
+    return make
 
 
 class TestInstallSource:
@@ -309,9 +331,7 @@ class TestFingerprint:
         # Assert
         assert fingerprint.startswith("sha256:")
 
-    def test_byte_compiled_and_plain_installs_share_the_fingerprint(
-        self, prov, sites
-    ):
+    def test_byte_compiled_and_plain_installs_share_the_fingerprint(self, prov, sites):
         # Arrange: one install wrote .pyc files (listed in RECORD), one did not
         has_pyc = (
             any(sites["index"].rglob("*.pyc")),
@@ -322,9 +342,7 @@ class TestFingerprint:
         # Assert
         assert (has_pyc, same) == ((True, False), True)
 
-    def test_wheel_file_install_of_the_same_wheel_has_the_index_fingerprint(
-        self, prov
-    ):
+    def test_wheel_file_install_of_the_same_wheel_has_the_index_fingerprint(self, prov):
         # Arrange
         index = prov["index"]
         # Act
@@ -348,9 +366,7 @@ class TestFingerprint:
         # Assert
         assert source == "index"
 
-    def test_patched_rebuild_of_the_same_version_has_another_fingerprint(
-        self, prov
-    ):
+    def test_patched_rebuild_of_the_same_version_has_another_fingerprint(self, prov):
         # Arrange
         release = prov["index"]
         # Act
@@ -394,41 +410,41 @@ class TestEditedInPlace:
         # Assert
         assert modified == []
 
-    def test_edited_installed_file_is_listed(self, prov):
+    def test_edited_installed_file_is_listed(self, prov, modified):
         # Arrange
-        info = prov["edited"]
+        info = modified("edited")
         # Act
         modified = info["modified_files"]
         # Assert
         assert modified == [f"{NAME}/__init__.py"]
 
-    def test_edit_in_place_keeps_the_fingerprint(self, prov):
+    def test_edit_in_place_keeps_the_fingerprint(self, prov, modified):
         # Arrange
         intact = prov["index"]
         # Act
-        edited = prov["edited"]
+        edited = modified("edited")
         # Assert
         assert edited["fingerprint"] == intact["fingerprint"]
 
-    def test_edit_in_place_is_not_reproducible(self, prov):
+    def test_edit_in_place_is_not_reproducible(self, prov, modified):
         # Arrange
-        info = prov["edited"]
+        info = modified("edited")
         # Act
         reason = non_reproducible_reason(info) or ""
         # Assert
         assert "after installation" in reason
 
-    def test_touched_but_unchanged_file_is_not_modified(self, prov):
+    def test_touched_but_unchanged_file_is_not_modified(self, prov, modified):
         # Arrange
-        info = prov["touched"]
+        info = modified("touched")
         # Act
         modified = info["modified_files"]
         # Assert
         assert modified == []
 
-    def test_deleted_installed_file_is_listed(self, prov):
+    def test_deleted_installed_file_is_listed(self, prov, modified):
         # Arrange
-        info = prov["deleted"]
+        info = modified("deleted")
         # Act
         modified = info["modified_files"]
         # Assert

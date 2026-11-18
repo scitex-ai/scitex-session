@@ -25,7 +25,10 @@ versions follow [Semantic Versioning](https://semver.org/).
   Measured with `examples/measure_run_record_size.py` (3 sessions of a
   load/save script, plain venv): run directory 18 238 -> 7 482 B each
   (`CONFIG.yaml` 10 982 -> 3 521 B, `CONFIG.pkl` 6 380 -> 3 088 B) plus one
-  5 682 B environment file: 54 714 -> 28 128 B for the three runs.
+  5 682 B environment file: 54 714 -> 28 128 B for the three runs. In the
+  paper-scitex-clew solver image (heavier stack, 3 sessions): run directory
+  36 722 -> 9 259 B each (`CONFIG.yaml` 23 450 -> 4 520 B, `CONFIG.pkl`
+  12 426 -> 3 896 B) plus one 14 122 B environment file: 110 166 -> 41 899 B.
 
 ### Added
 

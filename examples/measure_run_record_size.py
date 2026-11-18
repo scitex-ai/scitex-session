@@ -62,7 +62,9 @@ def _make_project(root: Path) -> Path:
     return script
 
 
-def measure(python: str, out_dir: Path, sessions: int, dsn: str) -> dict:
+def measure(
+    python: str, out_dir: Path, sessions: int, dsn: str, pythonpath: str = ""
+) -> dict:
     project = out_dir / "project"
     script = _make_project(project)
     tmp = out_dir / "tmp"
@@ -74,6 +76,8 @@ def measure(python: str, out_dir: Path, sessions: int, dsn: str) -> dict:
         "TMPDIR": str(tmp),
         "SCITEX_STORE_DSN": dsn,
     }
+    if pythonpath:
+        env["PYTHONPATH"] = pythonpath
     for i in range(sessions):
         res = subprocess.run(
             [python, str(script)],
@@ -129,13 +133,18 @@ def main(argv=None) -> int:
     p.add_argument("--python", default=sys.executable)
     p.add_argument("--out-dir", required=True, type=Path)
     p.add_argument("--sessions", type=int, default=3)
+    p.add_argument(
+        "--pythonpath",
+        default="",
+        help="PYTHONPATH for the sessions (e.g. a source tree inside a container)",
+    )
     a = p.parse_args(argv)
     dsn = os.environ.get("SCITEX_STORE_DSN")
     if not dsn:
         p.error(
             "SCITEX_STORE_DSN is not set: set it to the store the runs may write to"
         )
-    print(json.dumps(measure(a.python, a.out_dir.resolve(), a.sessions, dsn), indent=1))
+    print(json.dumps(measure(a.python, a.out_dir.resolve(), a.sessions, dsn, a.pythonpath), indent=1))
     return 0
 
 

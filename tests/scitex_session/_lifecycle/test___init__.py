@@ -40,6 +40,7 @@ def test_lifecycle_directory_preserves_all_existing_exports():
     expected = {
         "start", "close", "running2finished", "archive_session_dir",
         "restore_session_archive", "archive_existing", "restore_existing",
+        "load_run_provenance",
     }
     # Act
     result = {name for name in dir(_lifecycle) if not name.startswith("_")}

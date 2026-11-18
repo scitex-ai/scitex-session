@@ -7,6 +7,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-18
+
 ### Performance
 
 `@session` start + close for a do-nothing script: 3.46 s -> 0.77 s (median of

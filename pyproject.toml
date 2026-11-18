@@ -34,6 +34,8 @@ dependencies = [
     "scitex-str>=0.1.14",  # import without pandas/xarray (start-up cost)
     # >=0.5.0: ``scitex_io.provenance_scope`` (the session opens one per run)
     "scitex-io>=0.5.0",
+    # load_run_provenance reads CONFIGS/CONFIG.yaml (safe_load)
+    "PyYAML>=5.1",
     # _lifecycle/_start.py resolves the notebook path via
     # ``from scitex_context import get_notebook_path``.
     "scitex-context>=0.1.4",

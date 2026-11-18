@@ -7,6 +7,35 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Environment provenance is stored once per environment, not per run**
+  (paper-scitex-clew finding: 0.5.x grew a one-session run directory from
+  7.8 KB to 36 KB). `CONFIGS/CONFIG.yaml` and `CONFIG.pkl` repeated the full
+  `package_provenance` of every imported distribution in every run. The run
+  record now keeps `_PROVENANCE.package_provenance_ref`
+  (`{format, sha256, distributions, path, abspath}`) and the set itself is
+  written once, content-addressed, to
+  `<project_root>/.scitex/session/environments/<sha256>.json` (canonical
+  JSON; `sha256sum` of the file equals the reference), shared by every run in
+  the same environment. Nothing is dropped. If the store cannot be written,
+  the record keeps the set inline and says why
+  (`package_provenance_store_error`). The metadata handed to observers
+  (scitex-clew's run record) is unchanged and still carries the set inline.
+  Measured with `examples/measure_run_record_size.py` (3 sessions of a
+  load/save script, plain venv): run directory 18 238 -> 7 482 B each
+  (`CONFIG.yaml` 10 982 -> 3 521 B, `CONFIG.pkl` 6 380 -> 3 088 B) plus one
+  5 682 B environment file: 54 714 -> 28 128 B for the three runs.
+
+### Added
+
+- `scitex_session.load_run_provenance(run_dir)`: a finished run's
+  `_PROVENANCE` with `package_provenance` resolved (hash-checked; looks under
+  the record's `project_root`, its `abspath`, then the ancestors of `run_dir`
+  for a moved project). Records written inline by 0.5.x read unchanged.
+- `examples/measure_run_record_size.py`: run-directory + environment-store
+  size of N real sessions under a given interpreter.
+
 ## [0.5.1] - 2026-11-18
 
 ### Performance

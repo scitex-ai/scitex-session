@@ -44,6 +44,9 @@ Field names (stable; observers may read them):
                    version alone cannot tell a locally patched build from the
                    index release; this can. Each distribution is examined
                    once per run: at start, or at close for one imported later
+                   (handed to observers inline; the on-disk run record
+                   ``CONFIGS/CONFIG.yaml`` stores it once per environment and
+                   keeps a ``package_provenance_ref``, see :mod:`._env_store`)
 ``unresolved_imports`` ``{module: location}`` imported top-level modules
                    that are neither stdlib, project-local nor attributable to
                    an installed distribution — the environment record cannot

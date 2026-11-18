@@ -1,0 +1,2 @@
+# Parameters for quickstart.py, read as CONFIG.QUICKSTART.<KEY>.
+N_SQUARES: 5   # how many squares to print

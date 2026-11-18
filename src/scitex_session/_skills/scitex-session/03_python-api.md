@@ -21,11 +21,12 @@ clew lineage.
 
 ```python
 @sess.session
-def main(param1="default",
+def main(data_path="data.csv",
          CONFIG=sess.INJECTED,
          plt=sess.INJECTED,
          logger=sess.INJECTED,
          rngg=sess.INJECTED):
+    threshold = CONFIG.ANALYSIS.THRESHOLD   # ./config/ANALYSIS.yaml
     return 0
 
 
@@ -34,7 +35,12 @@ if __name__ == "__main__":
 ```
 
 Parameters with `sess.INJECTED` as default are filled by the decorator.
-Other parameters become CLI flags (`--param1`).
+Other parameters become CLI flags (`--data-path`); use them for inputs
+(paths, subject ids). Analysis parameters belong in `./config/*.yaml`
+(resolved against the working directory), read as
+`CONFIG.<FILE_STEM>.<KEY>` with keys upper-cased; there is no CLI override
+for them. `scitex-dev` >= 0.64.0 rule STX-S008 flags numeric `main()`
+defaults. See [02_quick-start.md](02_quick-start.md#where-parameters-live).
 
 > Do **not** reach for `sess.start` or `sess.run` — they are NOT
 > decorators and are easy to misfire (`@sess.start` binds your function

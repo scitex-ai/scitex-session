@@ -29,7 +29,9 @@ versions follow [Semantic Versioning](https://semver.org/).
   realpath cache.
 - The `--help` epilog (figrecipe colour keys, `./config/*.yaml` listing) is
   built only when help is rendered.
-- Requires `scitex-str>=0.1.13`, whose import no longer pulls pandas/xarray.
+- Requires `scitex-str>=0.1.14`, whose import no longer pulls pandas/xarray.
+- `package_provenance`: imported distributions are examined on 8 threads
+  (per-file stats overlap; 0.44 s -> ~0.15 s on a squashfs/FUSE image).
 
 ### Tests
 

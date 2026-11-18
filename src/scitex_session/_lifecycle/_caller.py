@@ -10,9 +10,11 @@ inside IPython, never a cell's temporary file (see :mod:`._notebook`).
 
 from __future__ import annotations
 
-import inspect
 import os as _os
-from typing import List, Optional, Tuple
+import sys as _sys
+from typing import Iterator, List, Optional, Tuple
+
+from ._environment import _module_attr
 
 # Top-level module-name prefixes whose frames belong to the SciTeX
 # session/dev plumbing (decorators, wrappers, MCP bridges, …). When
@@ -21,8 +23,8 @@ from typing import List, Optional, Tuple
 # wrappers, not the real caller. ``scitex_session`` self-skip handles
 # the @stx.session wrapper chain; ``scitex_dev`` handles agent /
 # harness / decorator layers that wrap @stx.session further. We match
-# on module names (via ``inspect.getmodule``) rather than filename
-# substrings so that the ``tests/scitex_session/`` test tree (whose
+# on module names (the frame's ``__name__``, see ``_stack_frames``)
+# rather than filename substrings so that the ``tests/scitex_session/`` test tree (whose
 # *files* contain ``/scitex_session/`` but whose *module* names are
 # ``tests.scitex_session.…``) is not falsely flagged as internal.
 _INTERNAL_MODULE_PREFIXES: Tuple[str, ...] = (
@@ -31,6 +33,38 @@ _INTERNAL_MODULE_PREFIXES: Tuple[str, ...] = (
     "scitex_dev.",
     "scitex_dev",
 )
+
+
+def _stack_frames() -> Iterator[Tuple[str, Optional[str]]]:
+    """``(filename, module name or None)`` per caller frame, innermost first.
+
+    Replaces ``inspect.stack()`` + ``inspect.getmodule(frame)``, which made
+    the stack walk cost ~0.3-0.7 s: ``inspect.stack()`` reads source context
+    for every frame, and the first ``getmodule`` builds a file->module map by
+    probing ``__file__`` on EVERY entry of ``sys.modules`` — which executes
+    lazily-loaded modules (``importlib.util.LazyLoader``) and moved-module
+    aliases (their ``__getattr__`` imports the new location and warns).
+
+    The module name is the frame's own ``__name__`` global, kept only when
+    the module registered under that name was loaded from this frame's file
+    (what ``getmodule`` resolved); otherwise ``None``, as ``getmodule`` gave
+    for code with no module (exec'd strings, ``runpy.run_path``).
+    """
+    frame = _sys._getframe(1)
+    while frame is not None:
+        filename = frame.f_code.co_filename or ""
+        modname = frame.f_globals.get("__name__")
+        module = _sys.modules.get(modname) if isinstance(modname, str) else None
+        mod_file = _module_attr(module, "__file__") if module is not None else None
+        if not (
+            mod_file
+            and filename
+            and _os.path.normcase(_os.path.abspath(mod_file))
+            == _os.path.normcase(_os.path.abspath(filename))
+        ):
+            modname = None
+        yield filename, modname
+        frame = frame.f_back
 
 
 def _is_internal_module_name(modname: Optional[str]) -> bool:
@@ -69,7 +103,7 @@ def _is_internal_frame_file(path: str) -> bool:
 def _find_user_caller_file(hint: Optional[str] = None) -> Optional[str]:
     """Resolve the user's script path by walking the call stack outward.
 
-    Walks ``inspect.stack()`` from innermost to outermost and returns
+    Walks the call stack (``_stack_frames``) from innermost to outermost and returns
     the filename of the first frame whose module name does NOT start
     with ``scitex_session`` / ``scitex_dev`` (i.e. is not an
     intermediate plumbing frame). The optional ``hint`` (typically the
@@ -89,13 +123,10 @@ def _find_user_caller_file(hint: Optional[str] = None) -> Optional[str]:
     if hint and not _is_internal_frame_file(hint) and not _is_own_package_file(hint):
         return hint
 
-    for frame_info in inspect.stack():
-        candidate = frame_info.filename or ""
+    for candidate, modname in _stack_frames():
         # Skip transient stdlib / runpy frames that are also not the user.
         if candidate.startswith("<"):  # "<string>", "<stdin>", "<frozen ...>"
             continue
-        mod = inspect.getmodule(frame_info.frame)
-        modname = getattr(mod, "__name__", None)
         if _is_internal_module_name(modname):
             continue
         # When the frame has no resolvable module (rare; dynamically
@@ -173,14 +204,12 @@ def _find_user_caller(
 
     roots = _library_roots()
     first_file: Optional[str] = None
-    for frame_info in inspect.stack():
-        candidate = frame_info.filename or ""
+    for candidate, modname in _stack_frames():
         if is_cell_file(candidate):
             return None, "cell"
         if candidate.startswith("<"):
             continue
-        mod = inspect.getmodule(frame_info.frame)
-        if _is_internal_module_name(getattr(mod, "__name__", None)):
+        if _is_internal_module_name(modname):
             continue
         if _is_internal_frame_file(candidate) or _is_own_package_file(candidate):
             continue

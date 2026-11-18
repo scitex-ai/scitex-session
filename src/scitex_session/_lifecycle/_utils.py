@@ -10,10 +10,9 @@ import random as _random
 import re
 import string as _string
 from datetime import datetime
-from scitex_logging import getLogger
-from time import sleep
 from typing import Any, Dict, Tuple
 
+from scitex_logging import getLogger
 from scitex_str import printc as _printc
 
 logger = getLogger(__name__)
@@ -128,24 +127,20 @@ def print_header(
     verbose: bool = True,
     *,
     printc_fn=None,
-    sleep_fn=None,
 ) -> None:
     """Prints formatted header with scitex version, ID, and PID information.
+
+    It used to pause ``sleep(1)`` before and after the config dump: a fixed
+    2 s added to every session, for nothing. It no longer waits.
 
     Parameters
     ----------
     printc_fn : callable, optional
         Override for the `_printc` collaborator. Tests pass a no-op fake;
         production leaves it ``None`` so the module-level `_printc` is used.
-    sleep_fn : callable, optional
-        Override for `time.sleep`. Tests pass a no-op fake to keep the
-        suite fast; production leaves it ``None`` so the real `sleep` is
-        used.
     """
     if printc_fn is None:
         printc_fn = _printc
-    if sleep_fn is None:
-        sleep_fn = sleep
 
     if args is not None and hasattr(args, "_get_kwargs"):
         args_str = "Arguments:"
@@ -159,13 +154,11 @@ def print_header(
         char="=",
     )
 
-    sleep_fn(1)
     if verbose:
         from pprint import pformat
 
         config_str = pformat(configs.to_dict())
         logger.info(f"\n{'-' * 40}\n\n{config_str}\n\n{'-' * 40}\n")
-    sleep_fn(1)
 
 
 def format_diff_time(diff_time) -> str:

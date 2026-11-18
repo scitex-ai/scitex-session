@@ -34,6 +34,16 @@ Field names (stable; observers may read them):
                    third-party, scitex and editable installs alike; refreshed
                    at session close (:func:`collect_close_metadata`) so
                    modules imported inside the run are included
+``package_provenance`` ``{distribution: {"version", "source", "fingerprint",
+                   "modified_files", ...}}`` for every distribution in
+                   ``packages``: PEP 610 install source (``"index"`` |
+                   ``"editable"`` | ``"local_dir"`` | ``"local_archive"`` |
+                   ``"remote_archive"`` | ``"vcs"``), a content fingerprint
+                   of the installed wheel and the installed files edited
+                   since installation (see :mod:`._dist_provenance`). A
+                   version alone cannot tell a locally patched build from the
+                   index release; this can. Each distribution is examined
+                   once per run: at start, or at close for one imported later
 ``unresolved_imports`` ``{module: location}`` imported top-level modules
                    that are neither stdlib, project-local nor attributable to
                    an installed distribution — the environment record cannot
@@ -93,6 +103,7 @@ from typing import Any, Callable, Dict, List, Mapping, Optional
 from scitex_logging import getLogger
 
 from ._entry import detect_entry
+from ._dist_provenance import distribution_provenance
 from ._environment import _imported_distributions, _local_module_hashes
 from ._project_root import resolve_project_root
 
@@ -203,8 +214,10 @@ def collect_close_metadata(
     ``sdir_run_final`` describe where the session moved its run directory
     (see :func:`~._close.running2finished`).
 
-    Returns a JSON-serialisable mapping with ``packages`` and
-    ``local_modules`` (union of start and close), ``unresolved_imports``
+    Returns a JSON-serialisable mapping with ``packages``,
+    ``package_provenance`` and ``local_modules`` (union of start and close;
+    provenance is collected only for distributions the start record lacks),
+    ``unresolved_imports``
     (re-evaluated for every module still imported), ``relocations``,
     ``sdir_run_final`` and ``close_capture_errors``.
     """
@@ -215,10 +228,17 @@ def collect_close_metadata(
     script = Path(script_path).resolve() if script_path else None
     errors: Dict[str, str] = {}
     fresh: Dict[str, Any] = {}
-    _collect_environment(fresh, errors, modules, project_root, script)
+    _collect_environment(
+        fresh,
+        errors,
+        modules,
+        project_root,
+        script,
+        known_provenance=start.get("package_provenance") or {},
+    )
 
     meta: Dict[str, Any] = {}
-    for field in ("packages", "local_modules"):
+    for field in ("packages", "package_provenance", "local_modules"):
         merged = dict(start.get(field) or {})
         merged.update(fresh.get(field) or {})
         meta[field] = dict(sorted(merged.items()))
@@ -245,13 +265,23 @@ def _collect_environment(
     modules: Mapping[str, Any],
     project_root: Optional[Path],
     script: Optional[Path],
+    known_provenance: Optional[Mapping[str, Any]] = None,
 ) -> None:
-    """Fill ``packages`` / ``unresolved_imports`` / ``local_modules``."""
+    """Fill ``packages`` / ``package_provenance`` / ``unresolved_imports`` /
+    ``local_modules``. Distributions in ``known_provenance`` (already
+    examined at start, same version) are not examined again."""
     env = _capture(
         "packages", errors, lambda: _imported_distributions(modules, project_root)
     )
     if env is not None:
-        meta["packages"], meta["unresolved_imports"] = env
+        dists, meta["unresolved_imports"] = env
+        meta["packages"] = {name: dist.version for name, dist in dists.items()}
+        known = known_provenance or {}
+        meta["package_provenance"] = {
+            name: _dist_provenance_or_error(name, dist, errors)
+            for name, dist in dists.items()
+            if (known.get(name) or {}).get("version") != dist.version
+        }
     local = _capture(
         "local_modules",
         errors,
@@ -259,6 +289,18 @@ def _collect_environment(
     )
     if local is not None:
         meta["local_modules"] = local
+
+
+def _dist_provenance_or_error(
+    name: str, dist: Any, errors: Dict[str, str]
+) -> Dict[str, Any]:
+    """One distribution's provenance; a failure is recorded on that entry."""
+    info = _capture(
+        f"package_provenance[{name}]", errors, lambda: distribution_provenance(dist)
+    )
+    if info is None:
+        return {"version": dist.version, "error": errors[f"package_provenance[{name}]"]}
+    return info
 
 
 def _capture(field: str, errors: Dict[str, str], collect: Callable[[], Any]) -> Any:

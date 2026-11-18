@@ -44,6 +44,51 @@ def _create_parser(func: Callable) -> argparse.ArgumentParser:
     except Exception:
         type_hints = {}
 
+    parser = _LazyEpilogParser(
+        epilog_factory=lambda: _build_epilog(func),
+        description=doc,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
+    used_short_forms = {"h"}  # Reserve -h for help.
+
+    for param_name, param in sig.parameters.items():
+        # Skip parameters with INJECTED as default.
+        if param.default != inspect.Parameter.empty and isinstance(
+            param.default, type(INJECTED)
+        ):
+            continue
+
+        short_form = _generate_short_form(param_name, used_short_forms)
+        if short_form:
+            used_short_forms.add(short_form)
+
+        _add_argument(parser, param_name, param, type_hints, short_form)
+
+    return parser
+
+
+class _LazyEpilogParser(argparse.ArgumentParser):
+    """ArgumentParser whose epilog is built only when help is rendered.
+
+    The epilog lists the injected globals with live values: it configures
+    matplotlib through figrecipe for the colour keys and reads
+    ``./config/*.yaml``. Building it for every run cost ~0.4 s of session
+    start-up although it is shown only by ``--help`` (or a usage error).
+    """
+
+    def __init__(self, *args, epilog_factory: Callable[[], str], **kwargs):
+        super().__init__(*args, **kwargs)
+        self._epilog_factory = epilog_factory
+
+    def format_help(self) -> str:
+        if self.epilog is None and self._epilog_factory is not None:
+            self.epilog = self._epilog_factory()
+        return super().format_help()
+
+
+def _build_epilog(func: Callable) -> str:
+    """Help-text epilog documenting the decorator-injected globals."""
     # Get actual values for deterministic items.
     caller_file = func.__globals__.get("__file__", "unknown.py")
 
@@ -58,7 +103,6 @@ def _create_parser(func: Callable) -> argparse.ArgumentParser:
     # Available colour keys (best-effort; falls back to a short list).
     try:
         import matplotlib.pyplot as plt_temp
-
         from figrecipe.utils._configure_mpl import configure_mpl
 
         _, colors_dict = configure_mpl(plt_temp)
@@ -108,29 +152,7 @@ Global Variables Injected by @session Decorator:
     logger (SciTeXLogger)
         Logger configured for your script
 """
-
-    parser = argparse.ArgumentParser(
-        description=doc,
-        epilog=epilog,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-
-    used_short_forms = {"h"}  # Reserve -h for help.
-
-    for param_name, param in sig.parameters.items():
-        # Skip parameters with INJECTED as default.
-        if param.default != inspect.Parameter.empty and isinstance(
-            param.default, type(INJECTED)
-        ):
-            continue
-
-        short_form = _generate_short_form(param_name, used_short_forms)
-        if short_form:
-            used_short_forms.add(short_form)
-
-        _add_argument(parser, param_name, param, type_hints, short_form)
-
-    return parser
+    return epilog
 
 
 def _summarise_config_yaml_at_help_time() -> str:
@@ -144,10 +166,7 @@ def _summarise_config_yaml_at_help_time() -> str:
             )
         yaml_files = sorted(config_dir.glob("*.yaml"))
         if not yaml_files:
-            return (
-                "        CONFIG from YAML files:\n"
-                "        (no .yaml files found)"
-            )
+            return "        CONFIG from YAML files:\n        (no .yaml files found)"
         try:
             import yaml
 
@@ -169,10 +188,7 @@ def _summarise_config_yaml_at_help_time() -> str:
                     )
             if all_vars:
                 return "        CONFIG from YAML files:\n" + "\n".join(all_vars)
-            return (
-                "        CONFIG from YAML files:\n"
-                "        (no variables found)"
-            )
+            return "        CONFIG from YAML files:\n        (no variables found)"
         except Exception:
             return (
                 "        CONFIG from YAML files:\n"
@@ -180,10 +196,7 @@ def _summarise_config_yaml_at_help_time() -> str:
                 "at runtime)"
             )
     except Exception:
-        return (
-            "        CONFIG from YAML files:\n"
-            "        (unable to check at help-time)"
-        )
+        return "        CONFIG from YAML files:\n        (unable to check at help-time)"
 
 
 def _generate_short_form(param_name: str, used_short_forms: set) -> str:

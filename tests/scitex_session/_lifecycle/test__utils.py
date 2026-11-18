@@ -1140,21 +1140,11 @@ class _FakePrintc:
         self.calls.append((args, kwargs))
 
 
-class _FakeSleep:
-    """Records sleep durations without actually sleeping (no mocks)."""
-
-    def __init__(self):
-        self.durations = []
-
-    def __call__(self, duration):
-        self.durations.append(duration)
-
-
 class TestPrintHeader:
     """Tests for print_header helper function.
 
-    The `printc_fn` / `sleep_fn` injection points let the test pass real
-    hand-rolled fakes instead of `unittest.mock.patch`-ing module globals.
+    The `printc_fn` injection point lets the test pass a real hand-rolled
+    fake instead of `unittest.mock.patch`-ing module globals.
     """
 
     def test_print_header_with_args_invokes_printc_once(self):
@@ -1164,7 +1154,6 @@ class TestPrintHeader:
         from scitex_session._lifecycle._utils import print_header
 
         printc = _FakePrintc()
-        sleep_fake = _FakeSleep()
         args = argparse.Namespace(param1="value1", param2=42)
         configs = DotDict({"test": "value"})
         # Act
@@ -1176,7 +1165,6 @@ class TestPrintHeader:
             configs=configs,
             verbose=False,
             printc_fn=printc,
-            sleep_fn=sleep_fake,
         )
         # Assert
         assert len(printc.calls) == 1
@@ -1188,7 +1176,6 @@ class TestPrintHeader:
         from scitex_session._lifecycle._utils import print_header
 
         printc = _FakePrintc()
-        sleep_fake = _FakeSleep()
         args = argparse.Namespace(param1="value1", param2=42)
         configs = DotDict({"test": "value"})
         # Act
@@ -1200,7 +1187,6 @@ class TestPrintHeader:
             configs=configs,
             verbose=False,
             printc_fn=printc,
-            sleep_fn=sleep_fake,
         )
         payload = printc.calls[0][0][0]
         # Assert
@@ -1213,7 +1199,6 @@ class TestPrintHeader:
         from scitex_session._lifecycle._utils import print_header
 
         printc = _FakePrintc()
-        sleep_fake = _FakeSleep()
         configs = DotDict({"test": "value"})
         # Act
         print_header(
@@ -1224,21 +1209,22 @@ class TestPrintHeader:
             configs=configs,
             verbose=False,
             printc_fn=printc,
-            sleep_fn=sleep_fake,
         )
         payload = printc.calls[0][0][0]
         # Assert
         assert "Arguments: None" in payload
 
-    def test_print_header_invokes_sleep_twice(self):
-        # Arrange
+    def test_print_header_does_not_pause(self):
+        # Arrange: it used to sleep(1) twice — 2 s added to every session
+        import time
+
         from scitex_dict import DotDict
 
         from scitex_session._lifecycle._utils import print_header
 
         printc = _FakePrintc()
-        sleep_fake = _FakeSleep()
         configs = DotDict({"test": "value"})
+        t0 = time.perf_counter()
         # Act
         print_header(
             ID="test_id",
@@ -1246,12 +1232,11 @@ class TestPrintHeader:
             file="/tmp/test.py",
             args=None,
             configs=configs,
-            verbose=False,
+            verbose=True,
             printc_fn=printc,
-            sleep_fn=sleep_fake,
         )
-        # Assert
-        assert len(sleep_fake.durations) == 2
+        # Assert (a pause of >= 1 s is what this guards; far above jitter)
+        assert time.perf_counter() - t0 < 0.9
 
 
 class TestSessionFigureSave:

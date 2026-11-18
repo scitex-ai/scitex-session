@@ -78,27 +78,32 @@ def session(
 
     .. code-block:: python
 
+        # ./config/ANALYSIS.yaml:  THRESHOLD: 0.5
+
         @stx.session
-        def analyze(data_path: str, threshold: float = 0.5):
+        def analyze(data_path: str, CONFIG=stx.session.INJECTED):
             '''Analyze data file.'''
             data = stx.io.load(data_path)
-            result = process(data, threshold)
+            result = process(data, CONFIG.ANALYSIS.THRESHOLD)
             stx.io.save(result, "output.csv")
             return 0
 
         if __name__ == '__main__':
             analyze()  # CLI mode with session management
 
-        # CLI: python script.py --data-path data.csv --threshold 0.7
+        # CLI: python script.py --data-path data.csv
+        # Analysis parameters come from ./config/*.yaml (CONFIG), not from
+        # numeric signature defaults; CLI arguments are for inputs.
 
     Decorator with options:
 
     .. code-block:: python
 
         @stx.session(verbose=True, notify=True)
-        def train_model(model_name: str, epochs: int = 10):
+        def train_model(model_name: str):
             '''Train ML model.'''
             # Available as globals: CONFIG, plt, COLORS, rngg, logger.
+            epochs = CONFIG.TRAIN.EPOCHS  # ./config/TRAIN.yaml
             logger.info(f"Session ID: {CONFIG['ID']}")
             logger.info(f"Output directory: {CONFIG['SDIR_RUN']}")
             # ... training code ...
@@ -111,7 +116,7 @@ def session(
     -----
     - Function name can be anything (not just ``main``).
     - Calling with arguments bypasses session management:
-      ``analyze('/path', 0.5)``.
+      ``analyze('/path')``.
     - Only one session-managed function per script.
     - Do NOT call multiple ``@session`` decorated functions from one
       script.

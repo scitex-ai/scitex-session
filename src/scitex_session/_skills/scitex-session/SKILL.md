@@ -22,7 +22,7 @@ tags: [scitex-session, scitex-package]
 ## Index
 
 - [01_installation.md](01_installation.md) — pip install, standalone vs umbrella, verify
-- [02_quick-start.md](02_quick-start.md) — first `@session` in 30 seconds
+- [02_quick-start.md](02_quick-start.md) — first `@session` in 30 seconds; where parameters live (`config/*.yaml` → `CONFIG`, never numeric `main()` defaults — STX-S008)
 - [03_python-api.md](03_python-api.md) — the `@session` decorator (THE entry point), `close`, `SessionManager`, `INJECTED`, automatic provenance capture (config files as inputs, re-run metadata, loud hook failures) (and the internal `_start`/`_run`)
 - [04_cli-reference.md](04_cli-reference.md) — `scitex-session-archive {compress,extract}`
 - [05_mcp-tools.md](05_mcp-tools.md) — six FastMCP tools (4 archive helpers + skills envelope)

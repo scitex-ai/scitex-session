@@ -7,6 +7,19 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-11-19
+
+### Documentation
+
+- **Analysis parameters live in `config/*.yaml`, read from `CONFIG`** (#92).
+  The quickstart example, README, skills and the `@session` docstring no
+  longer teach numeric `main()` signature defaults or `--threshold 0.7`
+  flags. `examples/quickstart.py` reads `CONFIG.QUICKSTART.N_SQUARES` from
+  `examples/config/QUICKSTART.yaml`. The docs state that `./config/` is
+  resolved against the working directory, keys are upper-cased, there is no
+  CLI override for `CONFIG` values, and that `scitex-dev` >= 0.64.0 rule
+  STX-S008 flags the old form. No runtime change.
+
 ## [0.6.0] - 2026-11-19
 
 ### Changed

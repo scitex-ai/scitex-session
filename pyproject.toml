@@ -29,7 +29,9 @@ dependencies = [
     "scitex-dict>=0.1.0",
     "scitex-logging>=0.2.5",
     # Lifecycle modules import the shared optional-import helper at runtime.
-    "scitex-dev>=0.62.28",
+    # >=0.65.0: linter handover (spi.add_issue / spi.is_script; the engine
+    # yields STX-S001/S003/S004/S006 to this package's plugin).
+    "scitex-dev>=0.65.0",
     "scitex-repro>=0.1.0",
     "scitex-str>=0.1.14",  # import without pandas/xarray (start-up cost)
     # >=0.5.0: ``scitex_io.provenance_scope`` (the session opens one per run)
@@ -101,6 +103,11 @@ scitex_session = [
 
 [project.entry-points."scitex_dev.skills"]
 scitex-session = "scitex_session"
+
+# STX-S001/S003/S004/S006 — the @stx.session structure rules (moved from the
+# scitex-dev engine; it yields them to this provider).
+[project.entry-points."scitex_dev.linter.plugins"]
+session = "scitex_session._linter_plugin:get_plugin"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

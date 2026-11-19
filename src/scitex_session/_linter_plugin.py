@@ -17,9 +17,10 @@ names scitex-session as their owner, so when this plugin is installed the
 engine stops emitting them; with an older scitex-session the engine's
 compatibility copy keeps emitting them.
 
-``STX-S002`` (``__main__`` guard), ``STX-S005`` (``import scitex as stx``),
-``STX-S007`` and ``STX-S008`` stay in scitex-dev — see the ownership table
-for why.
+The injection rules ``STX-I006`` / ``STX-P010`` / ``STX-P005`` live in
+``_linter_injection.py``. ``STX-S002`` (``__main__`` guard) stays in
+scitex-dev (cross-cutting); ``STX-S005`` is on hold and ``STX-S008`` moves
+here once its open scitex-dev work lands — see the ownership table.
 """
 
 from __future__ import annotations
@@ -32,6 +33,20 @@ __all__ = ["get_plugin", "make_rules"]
 # Decorator namespaces the engine has always recognised for @<ns>.session /
 # @<ns>.module. Kept verbatim: widening it would change findings.
 _DECO_NAMESPACES = ("stx", "scitex", "scitex_io")
+
+
+# STX-S008 — engine metadata, verbatim (the detector is in _linter_s008/).
+S008_SPEC = dict(
+    id="STX-S008",
+    severity="info",
+    category="structure",
+    message=(
+        "Hard-coded analysis parameter (magic number) — move it to config/*.yaml and read it from CONFIG"
+    ),
+    suggestion="Every parameter that shapes a result (threshold, window size, seed,\nalpha, n_bootstrap, frequency band, ...) belongs in config/*.yaml,\nloaded by @stx.session and read from the injected CONFIG:\n  # config/ANALYSIS.yaml\n  WINDOW_SIZE: 256\n  ALPHA: 0.05\n  SEED: 42\n\n  # script.py\n  @stx.session\n  def main(CONFIG=stx.session.INJECTED, ...):\n      window = CONFIG.ANALYSIS.WINDOW_SIZE\nNot flagged: 0/1/-1/2, positional args (shapes, indices), arithmetic,\ninteger comparisons, axis=/ddof=/indent=/timeout=-style keywords, and\nplotting-call keywords (figrecipe's STX-P007..P009 cover those).\nKeep a deliberate constant with `# stx-allow: STX-S008` on its line.",
+    requires="",
+    scope="",
+)
 
 
 def make_rules(Rule):
@@ -176,11 +191,11 @@ def _returns_int(node) -> bool:
     return False
 
 
-def _bind_checker(rules, spi):
+def _bind_checker(rules, spi, s008=None):
     S001, S003, S004, S006 = rules
 
     class SessionStructureChecker(ast.NodeVisitor):
-        """Emit STX-S001/S003/S004/S006 for one module."""
+        """Emit STX-S001/S003/S004/S006 (and S008 when bound) for one module."""
 
         accepts_filepath = True
         category = "structure"
@@ -223,6 +238,38 @@ def _bind_checker(rules, spi):
                 and not self._has_entry_decorator
             ):
                 self._emit(S001, 1, 0, "")
+            # S008 — hard-coded analysis parameters (whole-module scan), for
+            # plain scripts AND research scripts, never test files: the
+            # engine's exact gate.
+            if (
+                s008 is not None
+                and not spi.is_test_file(self.filepath)
+                and (
+                    self._is_script
+                    or spi.is_research_script(
+                        self.filepath,
+                        self.config,
+                        has_entry_decorator=self._has_entry_decorator,
+                    )
+                )
+            ):
+                self._check_hardcoded_parameters(node)
+
+        def _check_hardcoded_parameters(self, tree):
+            from ._linter_s008 import _src, find_hardcoded_parameters
+
+            source = "\n".join(self.source_lines)
+            for found, label in find_hardcoded_parameters(tree, source):
+                rule = replace(
+                    s008,
+                    message=(
+                        f"Hard-coded parameter `{label}` — move it to config/*.yaml "
+                        "and read it from CONFIG"
+                    ),
+                )
+                self._emit(
+                    rule, found.lineno, found.col_offset, _src(found, self.source_lines)
+                )
 
         def visit_Import(self, node):
             for alias in node.names:
@@ -283,15 +330,27 @@ def _bind_checker(rules, spi):
 
 
 def get_plugin():
-    """Return the session-structure rules and their checker."""
+    """Return the session rules (structure + injection) and their checkers."""
     from scitex_dev.linter import spi
 
+    from ._linter_injection import (
+        I006_SPEC,
+        P005_SPEC,
+        P010_SPEC,
+        bind_injection_checker,
+    )
+
     rules = make_rules(spi.Rule)
+    I006, P010, P005 = (spi.Rule(**s) for s in (I006_SPEC, P010_SPEC, P005_SPEC))
+    S008 = spi.Rule(**S008_SPEC)
     return {
-        "rules": list(rules),
+        "rules": [*rules, S008, I006, P010, P005],
         "call_rules": {},
         "axes_hints": {},
-        "checkers": [_bind_checker(rules, spi)],
+        "checkers": [
+            _bind_checker(rules, spi, s008=S008),
+            bind_injection_checker(I006, P010, P005, spi, _is_session_decorated),
+        ],
     }
 
 

@@ -10,7 +10,12 @@ import ast
 from scitex_dev.linter import spi
 from scitex_dev.linter.config import LinterConfig
 
-from scitex_session._linter_plugin import _bind_checker, get_plugin, make_rules
+from scitex_session._linter_plugin import (
+    S008_SPEC,
+    _bind_checker,
+    get_plugin,
+    make_rules,
+)
 
 _IDS = ("STX-S001", "STX-S003", "STX-S004", "STX-S006")
 
@@ -41,7 +46,9 @@ def test_plugin_rules_match_engine_compatibility_copy():
     # Act
     declared = {r.id: r for r in get_plugin()["rules"]}
     # Assert — delete together with the engine copy once the handover ends.
-    assert declared == {rid: ALL_RULES[rid] for rid in _IDS}
+    assert {rid: declared[rid] for rid in (*_IDS, "STX-S008")} == {
+        rid: ALL_RULES[rid] for rid in (*_IDS, "STX-S008")
+    }
 
 
 def test_main_guard_without_session_decorator_reports_s001():
@@ -124,5 +131,37 @@ def test_disabled_rule_is_not_reported():
     config = LinterConfig(disable=["STX-S003"])
     # Act
     found = _findings("import argparse\n", config=config)
+    # Assert
+    assert found == []
+
+
+class _S008Checker(
+    _bind_checker(make_rules(spi.Rule), spi, s008=spi.Rule(**S008_SPEC))
+):
+    available = {"scitex": True}
+
+
+def _s008(source, filepath="run_analysis.py"):
+    checker = _S008Checker(source.splitlines(), LinterConfig(), filepath=filepath)
+    checker.visit(ast.parse(source))
+    return [
+        (i.line, i.rule.message) for i in checker.issues if i.rule.id == "STX-S008"
+    ]
+
+
+def test_hard_coded_threshold_in_script_reports_s008():
+    # Arrange
+    source = "def main():\n    ALPHA = 0.05\n    return 0\n"
+    # Act
+    found = _s008(source)
+    # Assert
+    assert [line for line, _ in found] == [2]
+
+
+def test_s008_skips_test_files():
+    # Arrange
+    source = "ALPHA = 0.05\n"
+    # Act
+    found = _s008(source, filepath="tests/test_x.py")
     # Assert
     assert found == []

@@ -7,6 +7,10 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-19
+
+### Added
+
 - **Linter: the `@stx.session` rules are now owned and emitted by scitex-session**:
   - structure: `STX-S001`/`S003`/`S004`/`S006`;
   - `STX-S008` (hard-coded analysis parameter; detector ported verbatim);
@@ -15,7 +19,7 @@ versions follow [Semantic Versioning](https://semver.org/).
   They moved from the scitex-dev engine, which yields them to this plugin.
   Ids, severities, messages and gates are unchanged, so findings are
   unchanged; this was proven identical with `scitex-dev linter fingerprint`
-  on the SciTeX examples corpus. Requires `scitex-dev>=0.65.0`.
+  on the SciTeX examples corpus. Requires `scitex-dev>=0.65.0` (#96).
 
 ## [0.6.1] - 2026-11-19
 

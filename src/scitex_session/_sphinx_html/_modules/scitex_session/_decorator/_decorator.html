@@ -5,16 +5,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>scitex_session._decorator._decorator &mdash; scitex-session 0.5.0 documentation</title>
+  <title>scitex_session._decorator._decorator &mdash; scitex-session 0.7.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
       <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
-      <link rel="stylesheet" type="text/css" href="../../../_static/sphinx_autodoc_typehints.css?v=057ac668" />
 
   
       <script src="../../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="../../../_static/documentation_options.js?v=ba50482b"></script>
+      <script src="../../../_static/documentation_options.js?v=fe7df9b0"></script>
       <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -136,7 +135,10 @@
 <span class="sd">        with a single archive file (1 inode vs 7).</span>
 <span class="sd">    **session_kwargs</span>
 <span class="sd">        Additional session configuration parameters forwarded to</span>
-<span class="sd">        ``scitex_session.start`` / ``scitex_session.close``.</span>
+<span class="sd">        ``scitex_session.start`` — e.g. ``project_root="/path/to/project"``</span>
+<span class="sd">        to pin the project boundary provenance observers use (otherwise</span>
+<span class="sd">        ``$SCITEX_SESSION_PROJECT_ROOT``, then auto-detection; see</span>
+<span class="sd">        :mod:`scitex_session._lifecycle._project_root`).</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -152,27 +154,32 @@
 
 <span class="sd">    .. code-block:: python</span>
 
+<span class="sd">        # ./config/ANALYSIS.yaml:  THRESHOLD: 0.5</span>
+
 <span class="sd">        @stx.session</span>
-<span class="sd">        def analyze(data_path: str, threshold: float = 0.5):</span>
+<span class="sd">        def analyze(data_path: str, CONFIG=stx.session.INJECTED):</span>
 <span class="sd">            '''Analyze data file.'''</span>
 <span class="sd">            data = stx.io.load(data_path)</span>
-<span class="sd">            result = process(data, threshold)</span>
+<span class="sd">            result = process(data, CONFIG.ANALYSIS.THRESHOLD)</span>
 <span class="sd">            stx.io.save(result, "output.csv")</span>
 <span class="sd">            return 0</span>
 
 <span class="sd">        if __name__ == '__main__':</span>
 <span class="sd">            analyze()  # CLI mode with session management</span>
 
-<span class="sd">        # CLI: python script.py --data-path data.csv --threshold 0.7</span>
+<span class="sd">        # CLI: python script.py --data-path data.csv</span>
+<span class="sd">        # Analysis parameters come from ./config/*.yaml (CONFIG), not from</span>
+<span class="sd">        # numeric signature defaults; CLI arguments are for inputs.</span>
 
 <span class="sd">    Decorator with options:</span>
 
 <span class="sd">    .. code-block:: python</span>
 
 <span class="sd">        @stx.session(verbose=True, notify=True)</span>
-<span class="sd">        def train_model(model_name: str, epochs: int = 10):</span>
+<span class="sd">        def train_model(model_name: str):</span>
 <span class="sd">            '''Train ML model.'''</span>
 <span class="sd">            # Available as globals: CONFIG, plt, COLORS, rngg, logger.</span>
+<span class="sd">            epochs = CONFIG.TRAIN.EPOCHS  # ./config/TRAIN.yaml</span>
 <span class="sd">            logger.info(f"Session ID: {CONFIG['ID']}")</span>
 <span class="sd">            logger.info(f"Output directory: {CONFIG['SDIR_RUN']}")</span>
 <span class="sd">            # ... training code ...</span>
@@ -185,7 +192,7 @@
 <span class="sd">    -----</span>
 <span class="sd">    - Function name can be anything (not just ``main``).</span>
 <span class="sd">    - Calling with arguments bypasses session management:</span>
-<span class="sd">      ``analyze('/path', 0.5)``.</span>
+<span class="sd">      ``analyze('/path')``.</span>
 <span class="sd">    - Only one session-managed function per script.</span>
 <span class="sd">    - Do NOT call multiple ``@session`` decorated functions from one</span>
 <span class="sd">      script.</span>
@@ -201,6 +208,7 @@
 <span class="sd">    - ``rngg`` (RandomStateManager): Reproducibility manager; creates</span>
 <span class="sd">      named generators via ``rngg("name")``.</span>
 <span class="sd">    """</span>
+
     <span class="k">def</span><span class="w"> </span><span class="nf">decorator</span><span class="p">(</span><span class="n">func</span><span class="p">:</span> <span class="n">Callable</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">:</span>
         <span class="nd">@functools</span><span class="o">.</span><span class="n">wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
         <span class="k">def</span><span class="w"> </span><span class="nf">wrapper</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>

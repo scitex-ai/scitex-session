@@ -6,16 +6,15 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>API &mdash; scitex-session 0.5.0 documentation</title>
+  <title>API &mdash; scitex-session 0.7.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
       <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
-      <link rel="stylesheet" type="text/css" href="_static/sphinx_autodoc_typehints.css?v=057ac668" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=ba50482b"></script>
+      <script src="_static/documentation_options.js?v=fe7df9b0"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -63,6 +62,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#scitex_session.restore_session_archive"><code class="docutils literal notranslate"><span class="pre">restore_session_archive()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#scitex_session.archive_existing"><code class="docutils literal notranslate"><span class="pre">archive_existing()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#scitex_session.restore_existing"><code class="docutils literal notranslate"><span class="pre">restore_existing()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#scitex_session.load_run_provenance"><code class="docutils literal notranslate"><span class="pre">load_run_provenance()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#scitex_session.register_session_start_hook"><code class="docutils literal notranslate"><span class="pre">register_session_start_hook()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#scitex_session.register_session_close_hook"><code class="docutils literal notranslate"><span class="pre">register_session_close_hook()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#scitex_session.unregister_session_start_hook"><code class="docutils literal notranslate"><span class="pre">unregister_session_start_hook()</span></code></a></li>
@@ -143,15 +143,18 @@ management.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>func</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Callable" title="(in Python v3.15)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Callable</span></code></a></span>) – Function to wrap (set automatically by the decorator).</p></li>
-<li><p><strong>verbose</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a></span>) – Enable verbose logging.</p></li>
-<li><p><strong>agg</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a></span>) – Use matplotlib’s Agg backend (non-interactive).</p></li>
-<li><p><strong>notify</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a></span>) – Send notification on completion.</p></li>
-<li><p><strong>sdir_suffix</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a></span>) – Suffix for the output directory name (defaults to function name).</p></li>
-<li><p><strong>archive_format</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a></span>) – If set (e.g. <code class="docutils literal notranslate"><span class="pre">&quot;tar.gz&quot;</span></code>), replace FINISHED_SUCCESS/&lt;session&gt;/
+<li><p><strong>func</strong> (<em>callable</em><em>, </em><em>optional</em>) – Function to wrap (set automatically by the decorator).</p></li>
+<li><p><strong>verbose</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><em>bool</em></a><em>, </em><em>default False</em>) – Enable verbose logging.</p></li>
+<li><p><strong>agg</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><em>bool</em></a><em>, </em><em>default True</em>) – Use matplotlib’s Agg backend (non-interactive).</p></li>
+<li><p><strong>notify</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><em>bool</em></a><em>, </em><em>default False</em>) – Send notification on completion.</p></li>
+<li><p><strong>sdir_suffix</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a><em>, </em><em>optional</em>) – Suffix for the output directory name (defaults to function name).</p></li>
+<li><p><strong>archive_format</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a><em>, </em><em>optional</em>) – If set (e.g. <code class="docutils literal notranslate"><span class="pre">&quot;tar.gz&quot;</span></code>), replace FINISHED_SUCCESS/&lt;session&gt;/
 with a single archive file (1 inode vs 7).</p></li>
 <li><p><strong>**session_kwargs</strong> – Additional session configuration parameters forwarded to
-<code class="docutils literal notranslate"><span class="pre">scitex_session.start</span></code> / <code class="docutils literal notranslate"><span class="pre">scitex_session.close</span></code>.</p></li>
+<code class="docutils literal notranslate"><span class="pre">scitex_session.start</span></code> — e.g. <code class="docutils literal notranslate"><span class="pre">project_root=&quot;/path/to/project&quot;</span></code>
+to pin the project boundary provenance observers use (otherwise
+<code class="docutils literal notranslate"><span class="pre">$SCITEX_SESSION_PROJECT_ROOT</span></code>, then auto-detection; see
+<code class="xref py py-mod docutils literal notranslate"><span class="pre">scitex_session._lifecycle._project_root</span></code>).</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -161,31 +164,36 @@ bypasses session management entirely and invokes the function
 directly (useful for in-process tests).</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Callable" title="(in Python v3.15)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Callable</span></code></a></span></p>
+<dd class="field-odd"><p>callable</p>
 </dd>
 </dl>
 <div class="admonition-examples admonition">
 <p class="admonition-title">Examples</p>
 <p>Bare decorator (auto CLI from signature):</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@stx</span><span class="o">.</span><span class="n">session</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">analyze</span><span class="p">(</span><span class="n">data_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">):</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># ./config/ANALYSIS.yaml:  THRESHOLD: 0.5</span>
+
+<span class="nd">@stx</span><span class="o">.</span><span class="n">session</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">analyze</span><span class="p">(</span><span class="n">data_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">CONFIG</span><span class="o">=</span><span class="n">stx</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">INJECTED</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">'''Analyze data file.'''</span>
     <span class="n">data</span> <span class="o">=</span> <span class="n">stx</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">data_path</span><span class="p">)</span>
-    <span class="n">result</span> <span class="o">=</span> <span class="n">process</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">threshold</span><span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">process</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">CONFIG</span><span class="o">.</span><span class="n">ANALYSIS</span><span class="o">.</span><span class="n">THRESHOLD</span><span class="p">)</span>
     <span class="n">stx</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="s2">"output.csv"</span><span class="p">)</span>
     <span class="k">return</span> <span class="mi">0</span>
 
 <span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">'__main__'</span><span class="p">:</span>
     <span class="n">analyze</span><span class="p">()</span>  <span class="c1"># CLI mode with session management</span>
 
-<span class="c1"># CLI: python script.py --data-path data.csv --threshold 0.7</span>
+<span class="c1"># CLI: python script.py --data-path data.csv</span>
+<span class="c1"># Analysis parameters come from ./config/*.yaml (CONFIG), not from</span>
+<span class="c1"># numeric signature defaults; CLI arguments are for inputs.</span>
 </pre></div>
 </div>
 <p>Decorator with options:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@stx</span><span class="o">.</span><span class="n">session</span><span class="p">(</span><span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">notify</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">train_model</span><span class="p">(</span><span class="n">model_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">epochs</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">train_model</span><span class="p">(</span><span class="n">model_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">'''Train ML model.'''</span>
     <span class="c1"># Available as globals: CONFIG, plt, COLORS, rngg, logger.</span>
+    <span class="n">epochs</span> <span class="o">=</span> <span class="n">CONFIG</span><span class="o">.</span><span class="n">TRAIN</span><span class="o">.</span><span class="n">EPOCHS</span>  <span class="c1"># ./config/TRAIN.yaml</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Session ID: </span><span class="si">{</span><span class="n">CONFIG</span><span class="p">[</span><span class="s1">'ID'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Output directory: </span><span class="si">{</span><span class="n">CONFIG</span><span class="p">[</span><span class="s1">'SDIR_RUN'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
     <span class="c1"># ... training code ...</span>
@@ -200,7 +208,7 @@ directly (useful for in-process tests).</p>
 <ul class="simple">
 <li><p>Function name can be anything (not just <code class="docutils literal notranslate"><span class="pre">main</span></code>).</p></li>
 <li><p>Calling with arguments bypasses session management:
-<code class="docutils literal notranslate"><span class="pre">analyze('/path',</span> <span class="pre">0.5)</span></code>.</p></li>
+<code class="docutils literal notranslate"><span class="pre">analyze('/path')</span></code>.</p></li>
 <li><p>Only one session-managed function per script.</p></li>
 <li><p>Do NOT call multiple <code class="docutils literal notranslate"><span class="pre">&#64;session</span></code> decorated functions from one
 script.</p></li>
@@ -222,6 +230,14 @@ named generators via <code class="docutils literal notranslate"><span class="pre
 <dt class="sig sig-object py" id="scitex_session.close">
 <span class="sig-prename descclassname"><span class="pre">scitex_session.</span></span><span class="sig-name descname"><span class="pre">close</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">CONFIG</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">message</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">':)'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">notify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exit_status</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">archive_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/scitex_session/_lifecycle/_close.html#close"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#scitex_session.close" title="Link to this definition"></a></dt>
 <dd><p>Close experiment session and finalize logging.</p>
+<p>Order matters for provenance (scitex-session#66): the run directory is
+moved from <code class="docutils literal notranslate"><span class="pre">RUNNING/&lt;ID&gt;</span></code> to its <code class="docutils literal notranslate"><span class="pre">FINISHED_*/&lt;ID&gt;</span></code> location FIRST,
+and only then are the close hooks fired — with <code class="docutils literal notranslate"><span class="pre">relocations</span></code> /
+<code class="docutils literal notranslate"><span class="pre">sdir_run_final</span></code> in their metadata — so an observer that recorded
+files under the transient <code class="docutils literal notranslate"><span class="pre">RUNNING/&lt;ID&gt;</span></code> path is told, at the moment
+it finalises the run, where they now live (on every status: success,
+error, other). The run config is saved after the hooks, in the final
+directory, so it carries their failures and the final paths.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -242,6 +258,11 @@ copytree-only behavior bit-for-bit.</p></li>
 <dt class="sig sig-object py" id="scitex_session.running2finished">
 <span class="sig-prename descclassname"><span class="pre">scitex_session.</span></span><span class="sig-name descname"><span class="pre">running2finished</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">CONFIG</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exit_status</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">remove_src_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_wait</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">archive_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/scitex_session/_lifecycle/_close.html#running2finished"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#scitex_session.running2finished" title="Link to this definition"></a></dt>
 <dd><p>Move session from RUNNING to FINISHED directory.</p>
+<p>The directory is renamed in place when possible (one <code class="docutils literal notranslate"><span class="pre">rename(2)</span></code>: no
+copy, and files still open in the run — the tee’d logs — keep being
+written at their new location); it falls back to copying item by item
+when the rename is impossible (destination already exists, another
+filesystem).</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -274,10 +295,10 @@ preserves the original copytree-only behavior bit-for-bit.</p></li>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>session_id</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a></span>) – Unique identifier for the session</p></li>
-<li><p><strong>config</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Dict</span></code></a>[<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.15)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code></a>]</span>) – Session configuration dictionary</p></li>
-<li><p><strong>script_path</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a></span>) – Path to the script being run</p></li>
-<li><p><strong>fire_hooks</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a></span>) – Fire the session-start hooks. The <code class="docutils literal notranslate"><span class="pre">&#64;session</span></code> lifecycle passes
+<li><p><strong>session_id</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – Unique identifier for the session</p></li>
+<li><p><strong>config</strong> (<em>Dict</em><em>[</em><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a><em>, </em><em>Any</em><em>]</em>) – Session configuration dictionary</p></li>
+<li><p><strong>script_path</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a><em>, </em><em>optional</em>) – Path to the script being run</p></li>
+<li><p><strong>fire_hooks</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><em>bool</em></a><em>, </em><em>default True</em>) – Fire the session-start hooks. The <code class="docutils literal notranslate"><span class="pre">&#64;session</span></code> lifecycle passes
 <code class="docutils literal notranslate"><span class="pre">False</span></code> because it fires them itself (earlier, with re-run
 metadata); firing twice re-opened the observer’s run record
 without its script path or metadata.</p></li>
@@ -287,7 +308,7 @@ without its script path or metadata.</p></li>
 <dd class="field-even"><p>Failure records of start hooks that raised (each also warned).</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Dict</span></code></a>[<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>, <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>]]</span></p>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)">list</a> of <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)">dict</a></p>
 </dd>
 </dl>
 </dd></dl>
@@ -299,10 +320,10 @@ without its script path or metadata.</p></li>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>session_id</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a></span>) – Unique identifier for the session to close</p></li>
-<li><p><strong>status</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a></span>) – Final status (success, failed, error)</p></li>
-<li><p><strong>exit_code</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a></span>) – Exit code of the session</p></li>
-<li><p><strong>fire_hooks</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a></span>) – Fire the session-close hooks (the lifecycle passes <code class="docutils literal notranslate"><span class="pre">False</span></code>; it
+<li><p><strong>session_id</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – Unique identifier for the session to close</p></li>
+<li><p><strong>status</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a><em>, </em><em>optional</em>) – Final status (success, failed, error)</p></li>
+<li><p><strong>exit_code</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a><em>, </em><em>optional</em>) – Exit code of the session</p></li>
+<li><p><strong>fire_hooks</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><em>bool</em></a><em>, </em><em>default True</em>) – Fire the session-close hooks (the lifecycle passes <code class="docutils literal notranslate"><span class="pre">False</span></code>; it
 fires them itself with the real exit status).</p></li>
 </ul>
 </dd>
@@ -310,7 +331,7 @@ fires them itself with the real exit status).</p></li>
 <dd class="field-even"><p>Failure records of close hooks that raised (each also warned).</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Dict</span></code></a>[<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>, <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>]]</span></p>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)">list</a> of <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)">dict</a></p>
 </dd>
 </dl>
 </dd></dl>
@@ -324,7 +345,7 @@ fires them itself with the real exit status).</p></li>
 <dd class="field-odd"><p>Dictionary of active session information</p>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Dict</span></code></a>[<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.15)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code></a>]</span></p>
+<dd class="field-even"><p>Dict[<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)">str</a>, Any]</p>
 </dd>
 </dl>
 </dd></dl>
@@ -335,13 +356,13 @@ fires them itself with the real exit status).</p></li>
 <dd><p>Get specific session information.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>session_id</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a></span>) – Session ID to retrieve</p>
+<dd class="field-odd"><p><strong>session_id</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – Session ID to retrieve</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>Session information dictionary</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Dict</span></code></a>[<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.15)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code></a>]</span></p>
+<dd class="field-odd"><p>Dict[<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)">str</a>, Any]</p>
 </dd>
 </dl>
 </dd></dl>
@@ -355,7 +376,7 @@ fires them itself with the real exit status).</p></li>
 <dd class="field-odd"><p>Dictionary of all session information</p>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Dict</span></code></a>[<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.15)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code></a>]</span></p>
+<dd class="field-even"><p>Dict[<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)">str</a>, Any]</p>
 </dd>
 </dl>
 </dd></dl>
@@ -375,7 +396,7 @@ On any error the source is left untouched.</p>
 <dd class="field-odd"><p>Absolute path to the final archive file.</p>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Path</span></code></a></span></p>
+<dd class="field-even"><p>Path</p>
 </dd>
 </dl>
 </dd></dl>
@@ -392,7 +413,7 @@ archive file is deleted only after a successful rename.</p>
 <dd class="field-odd"><p>Absolute path to the restored directory.</p>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Path</span></code></a></span></p>
+<dd class="field-even"><p>Path</p>
 </dd>
 </dl>
 </dd></dl>
@@ -404,14 +425,14 @@ archive file is deleted only after a successful rename.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>track_bytes</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a></span>) – When True, run a per-candidate <code class="docutils literal notranslate"><span class="pre">dir_size()</span></code> (os.walk +
+<li><p><strong>track_bytes</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><em>bool</em></a><em>, </em><em>default False</em>) – When True, run a per-candidate <code class="docutils literal notranslate"><span class="pre">dir_size()</span></code> (os.walk +
 getsize per file) so that <code class="docutils literal notranslate"><span class="pre">bytes_in</span></code> / <code class="docutils literal notranslate"><span class="pre">bytes_out</span></code> in the
 returned summary are populated. Off by default because the
 size accounting adds a measurable per-session overhead on top
 of the mandatory tar IO (observed on neurovista 2026-05-25:
 80,408 sessions / 47 min wall-clock — the byte stats are a
 meaningful contributor).</p></li>
-<li><p><strong>use_fd</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a></span>) – Forwarded to <code class="docutils literal notranslate"><span class="pre">iter_session_candidates</span></code>. When True and <code class="docutils literal notranslate"><span class="pre">fd</span></code>
+<li><p><strong>use_fd</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><em>bool</em></a><em>, </em><em>default True</em>) – Forwarded to <code class="docutils literal notranslate"><span class="pre">iter_session_candidates</span></code>. When True and <code class="docutils literal notranslate"><span class="pre">fd</span></code>
 is installed, candidate enumeration uses the parallel
 subprocess path; otherwise the Python <code class="docutils literal notranslate"><span class="pre">iterdir+stat</span></code> path.</p></li>
 </ul>
@@ -422,7 +443,7 @@ bytes_in, bytes_out}. <code class="docutils literal notranslate"><span class="pr
 when <code class="docutils literal notranslate"><span class="pre">track_bytes</span></code> is False.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></a></span></p>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)">dict</a></p>
 </dd>
 </dl>
 </dd></dl>
@@ -436,7 +457,21 @@ when <code class="docutils literal notranslate"><span class="pre">track_bytes</s
 <dd class="field-odd"><p>Summary {scanned, candidates, restored, skipped, failed}.</p>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></a></span></p>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)">dict</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="scitex_session.load_run_provenance">
+<span class="sig-prename descclassname"><span class="pre">scitex_session.</span></span><span class="sig-name descname"><span class="pre">load_run_provenance</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">run_dir</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/scitex_session/_lifecycle/_env_store.html#load_run_provenance"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#scitex_session.load_run_provenance" title="Link to this definition"></a></dt>
+<dd><p>A finished run’s <code class="docutils literal notranslate"><span class="pre">_PROVENANCE</span></code> record with <code class="docutils literal notranslate"><span class="pre">package_provenance</span></code>
+resolved inline (whatever version wrote it).</p>
+<p><code class="docutils literal notranslate"><span class="pre">run_dir</span></code> is the run’s directory (<code class="docutils literal notranslate"><span class="pre">.../FINISHED_SUCCESS/&lt;ID&gt;/</span></code>); its
+<code class="docutils literal notranslate"><span class="pre">CONFIGS/CONFIG.yaml</span></code> is read.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Dict</span></code></a>[<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.15)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code></a>]</span></p>
 </dd>
 </dl>
 </dd></dl>
@@ -459,7 +494,9 @@ is idempotent (registering the same callable twice is a no-op). Returns
 <dt class="sig sig-object py" id="scitex_session.register_session_close_hook">
 <span class="sig-prename descclassname"><span class="pre">scitex_session.</span></span><span class="sig-name descname"><span class="pre">register_session_close_hook</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fn</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/scitex_session/_hooks.html#register_session_close_hook"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#scitex_session.register_session_close_hook" title="Link to this definition"></a></dt>
 <dd><p>Register <code class="docutils literal notranslate"><span class="pre">fn</span></code> to be called at session close.</p>
-<p><code class="docutils literal notranslate"><span class="pre">fn</span></code> is invoked as <code class="docutils literal notranslate"><span class="pre">fn(status,</span> <span class="pre">exit_code)</span></code>. Registration is idempotent.
+<p><code class="docutils literal notranslate"><span class="pre">fn</span></code> is invoked as <code class="docutils literal notranslate"><span class="pre">fn(status,</span> <span class="pre">exit_code)</span></code>, with <code class="docutils literal notranslate"><span class="pre">metadata=</span></code> added
+when <code class="docutils literal notranslate"><span class="pre">fn</span></code> accepts it (see the module docstring). Registration is
+idempotent.
 Returns <code class="docutils literal notranslate"><span class="pre">fn</span></code> so it can also be used as a decorator.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
@@ -474,7 +511,7 @@ Returns <code class="docutils literal notranslate"><span class="pre">fn</span></
 <dd><p>Remove a previously registered start hook (no-op if absent).</p>
 <dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><span class="highlight sphinx_autodoc_typehints-value"><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><code class="xref py py-obj docutils literal notranslate"><span class="kc"><span class="pre">None</span></span></code></a></span></span></p>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></span></p>
 </dd>
 </dl>
 </dd></dl>
@@ -485,7 +522,7 @@ Returns <code class="docutils literal notranslate"><span class="pre">fn</span></
 <dd><p>Remove a previously registered close hook (no-op if absent).</p>
 <dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><span class="highlight sphinx_autodoc_typehints-value"><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><code class="xref py py-obj docutils literal notranslate"><span class="kc"><span class="pre">None</span></span></code></a></span></span></p>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></span></p>
 </dd>
 </dl>
 </dd></dl>

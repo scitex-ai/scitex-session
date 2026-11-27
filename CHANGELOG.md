@@ -7,6 +7,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- Configure subprocess coverage via coverage.py `patch = ["subprocess"]`; `tests/conftest.py` no longer writes `.pth` files into site-packages or overwrites `COVERAGE_PROCESS_START`/`COVERAGE_FILE`.
+
 ## [0.7.0] - 2026-11-19
 
 ### Added

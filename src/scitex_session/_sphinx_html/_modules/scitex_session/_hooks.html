@@ -5,16 +5,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>scitex_session._hooks &mdash; scitex-session 0.5.0 documentation</title>
+  <title>scitex_session._hooks &mdash; scitex-session 0.7.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
       <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
-      <link rel="stylesheet" type="text/css" href="../../_static/sphinx_autodoc_typehints.css?v=057ac668" />
 
   
       <script src="../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="../../_static/documentation_options.js?v=ba50482b"></script>
+      <script src="../../_static/documentation_options.js?v=fe7df9b0"></script>
       <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -92,7 +91,17 @@
 <span class="sd">- ``register_session_start_hook(fn)`` — ``fn`` is called at session start as</span>
 <span class="sd">  ``fn(session_id, script_path, metadata)`` (positional).</span>
 <span class="sd">- ``register_session_close_hook(fn)`` — ``fn`` is called at session close as</span>
-<span class="sd">  ``fn(status, exit_code)`` (positional).</span>
+<span class="sd">  ``fn(status, exit_code)`` (positional), plus ``metadata=&lt;dict&gt;`` as a</span>
+<span class="sd">  keyword when ``fn`` accepts it (a ``metadata`` parameter or ``**kwargs``).</span>
+<span class="sd">  The close ``metadata`` is the close-time part of the run record</span>
+<span class="sd">  (``scitex_session._lifecycle._provenance.collect_close_metadata``):</span>
+<span class="sd">  ``packages`` / ``local_modules`` / ``unresolved_imports`` re-collected at</span>
+<span class="sd">  close (imports made during the run), and ``relocations`` /</span>
+<span class="sd">  ``sdir_run_final``. Close hooks fire AFTER the session moved its run</span>
+<span class="sd">  directory from ``RUNNING/&lt;ID&gt;`` to ``FINISHED_*/&lt;ID&gt;``; ``relocations``</span>
+<span class="sd">  (``[{"from": old_dir, "to": new_dir, ...}]``, real paths) tells the</span>
+<span class="sd">  observer that every path it recorded under ``from`` now lives under</span>
+<span class="sd">  ``to``.</span>
 
 <span class="sd">Every hook is fired in isolation — a misbehaving subscriber can never break a</span>
 <span class="sd">session or block the hooks registered after it — but a failure is NEVER</span>
@@ -104,7 +113,8 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">inspect</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span>
 
 <span class="c1"># Module-level registries. Kept as plain lists so ordering is deterministic</span>
 <span class="c1"># (registration order) and membership checks stay simple.</span>
@@ -132,7 +142,9 @@
 <span class="k">def</span><span class="w"> </span><span class="nf">register_session_close_hook</span><span class="p">(</span><span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">"""Register ``fn`` to be called at session close.</span>
 
-<span class="sd">    ``fn`` is invoked as ``fn(status, exit_code)``. Registration is idempotent.</span>
+<span class="sd">    ``fn`` is invoked as ``fn(status, exit_code)``, with ``metadata=`` added</span>
+<span class="sd">    when ``fn`` accepts it (see the module docstring). Registration is</span>
+<span class="sd">    idempotent.</span>
 <span class="sd">    Returns ``fn`` so it can also be used as a decorator.</span>
 <span class="sd">    """</span>
     <span class="k">if</span> <span class="n">fn</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_SESSION_CLOSE_HOOKS</span><span class="p">:</span>
@@ -206,16 +218,43 @@
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_fire_session_close_hooks</span><span class="p">(</span>
-    <span class="n">status</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="s2">"success"</span><span class="p">,</span> <span class="n">exit_code</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">status</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="s2">"success"</span><span class="p">,</span>
+    <span class="n">exit_code</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="n">metadata</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">HookFailure</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">"""Fire all registered close hooks; return one record per failed hook."""</span>
+<span class="w">    </span><span class="sd">"""Fire all registered close hooks; return one record per failed hook.</span>
+
+<span class="sd">    ``metadata`` is passed as a keyword to every hook that accepts it; a</span>
+<span class="sd">    hook with the original ``fn(status, exit_code)`` signature is called</span>
+<span class="sd">    exactly as before.</span>
+<span class="sd">    """</span>
     <span class="n">failures</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">HookFailure</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">hook</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">_SESSION_CLOSE_HOOKS</span><span class="p">):</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">hook</span><span class="p">(</span><span class="n">status</span><span class="p">,</span> <span class="n">exit_code</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">metadata</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">_accepts_keyword</span><span class="p">(</span><span class="n">hook</span><span class="p">,</span> <span class="s2">"metadata"</span><span class="p">):</span>
+                <span class="n">hook</span><span class="p">(</span><span class="n">status</span><span class="p">,</span> <span class="n">exit_code</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="n">metadata</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">hook</span><span class="p">(</span><span class="n">status</span><span class="p">,</span> <span class="n">exit_code</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>  <span class="c1"># noqa: BLE001 - recorded + warned, not swallowed</span>
             <span class="n">failures</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_record_failure</span><span class="p">(</span><span class="s2">"close"</span><span class="p">,</span> <span class="n">hook</span><span class="p">,</span> <span class="n">exc</span><span class="p">))</span>
     <span class="k">return</span> <span class="n">failures</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_accepts_keyword</span><span class="p">(</span><span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""True when ``fn`` can be called with ``name=`` as a keyword."""</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">signature</span><span class="p">(</span><span class="n">fn</span><span class="p">)</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">values</span><span class="p">()</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>  <span class="c1"># builtins without a signature</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="nb">any</span><span class="p">(</span>
+        <span class="n">p</span><span class="o">.</span><span class="n">kind</span> <span class="ow">is</span> <span class="n">inspect</span><span class="o">.</span><span class="n">Parameter</span><span class="o">.</span><span class="n">VAR_KEYWORD</span>
+        <span class="ow">or</span> <span class="p">(</span>
+            <span class="n">p</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">name</span>
+            <span class="ow">and</span> <span class="n">p</span><span class="o">.</span><span class="n">kind</span>
+            <span class="ow">in</span> <span class="p">(</span><span class="n">inspect</span><span class="o">.</span><span class="n">Parameter</span><span class="o">.</span><span class="n">POSITIONAL_OR_KEYWORD</span><span class="p">,</span> <span class="n">inspect</span><span class="o">.</span><span class="n">Parameter</span><span class="o">.</span><span class="n">KEYWORD_ONLY</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">params</span>
+    <span class="p">)</span>
 
 
 <span class="c1"># EOF</span>

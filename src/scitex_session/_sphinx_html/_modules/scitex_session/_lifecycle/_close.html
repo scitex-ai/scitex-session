@@ -5,16 +5,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>scitex_session._lifecycle._close &mdash; scitex-session 0.5.0 documentation</title>
+  <title>scitex_session._lifecycle._close &mdash; scitex-session 0.7.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
       <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
-      <link rel="stylesheet" type="text/css" href="../../../_static/sphinx_autodoc_typehints.css?v=057ac668" />
 
   
       <script src="../../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="../../../_static/documentation_options.js?v=ba50482b"></script>
+      <script src="../../../_static/documentation_options.js?v=fe7df9b0"></script>
       <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -104,9 +103,28 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.._manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_global_session_manager</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._config</span><span class="w"> </span><span class="kn">import</span> <span class="n">save_configs</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._io_scope</span><span class="w"> </span><span class="kn">import</span> <span class="n">close_io_scope</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">._utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">args_to_str</span><span class="p">,</span> <span class="n">escape_ansi_from_log_files</span><span class="p">,</span> <span class="n">process_timestamp</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">finished_run_dir</span><span class="p">(</span><span class="n">sdir_run</span><span class="p">,</span> <span class="n">exit_status</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Final location of a run directory ``.../RUNNING/&lt;ID&gt;/`` for a status.</span>
+
+<span class="sd">    ``0`` -&gt; ``FINISHED_SUCCESS``, ``1`` -&gt; ``FINISHED_ERROR``, anything else</span>
+<span class="sd">    -&gt; ``FINISHED``.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">exit_status</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">status_dir</span> <span class="o">=</span> <span class="s2">"FINISHED_SUCCESS/"</span>
+    <span class="k">elif</span> <span class="n">exit_status</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">status_dir</span> <span class="o">=</span> <span class="s2">"FINISHED_ERROR/"</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">status_dir</span> <span class="o">=</span> <span class="s2">"FINISHED/"</span>
+    <span class="n">run</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">sdir_run</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">run</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">"/"</span><span class="p">):</span>
+        <span class="n">run</span> <span class="o">+=</span> <span class="s2">"/"</span>
+    <span class="k">return</span> <span class="n">run</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"RUNNING/"</span><span class="p">,</span> <span class="n">status_dir</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="running2finished">
@@ -119,6 +137,12 @@
     <span class="n">archive_format</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
 <span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Move session from RUNNING to FINISHED directory.</span>
+
+<span class="sd">    The directory is renamed in place when possible (one ``rename(2)``: no</span>
+<span class="sd">    copy, and files still open in the run — the tee'd logs — keep being</span>
+<span class="sd">    written at their new location); it falls back to copying item by item</span>
+<span class="sd">    when the rename is impossible (destination already exists, another</span>
+<span class="sd">    filesystem).</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -140,24 +164,20 @@
 <span class="sd">    dict</span>
 <span class="sd">        Updated configuration with new SDIR</span>
 <span class="sd">    """</span>
-    <span class="k">if</span> <span class="n">exit_status</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-        <span class="n">dest_dir</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">CONFIG</span><span class="p">[</span><span class="s2">"SDIR_RUN"</span><span class="p">])</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"RUNNING/"</span><span class="p">,</span> <span class="s2">"FINISHED_SUCCESS/"</span><span class="p">)</span>
-    <span class="k">elif</span> <span class="n">exit_status</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-        <span class="n">dest_dir</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">CONFIG</span><span class="p">[</span><span class="s2">"SDIR_RUN"</span><span class="p">])</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"RUNNING/"</span><span class="p">,</span> <span class="s2">"FINISHED_ERROR/"</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">dest_dir</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">CONFIG</span><span class="p">[</span><span class="s2">"SDIR_RUN"</span><span class="p">])</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"RUNNING/"</span><span class="p">,</span> <span class="s2">"FINISHED/"</span><span class="p">)</span>
-
+    <span class="n">dest_dir</span> <span class="o">=</span> <span class="n">finished_run_dir</span><span class="p">(</span><span class="n">CONFIG</span><span class="p">[</span><span class="s2">"SDIR_RUN"</span><span class="p">],</span> <span class="n">exit_status</span><span class="p">)</span>
     <span class="n">src_dir</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">CONFIG</span><span class="p">[</span><span class="s2">"SDIR_RUN"</span><span class="p">])</span>
-    <span class="n">_os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">dest_dir</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="k">try</span><span class="p">:</span>
-        <span class="c1"># Copy files individually</span>
-        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">_os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">src_dir</span><span class="p">):</span>
-            <span class="n">s</span> <span class="o">=</span> <span class="n">_os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">src_dir</span><span class="p">,</span> <span class="n">item</span><span class="p">)</span>
-            <span class="n">d</span> <span class="o">=</span> <span class="n">_os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">dest_dir</span><span class="p">,</span> <span class="n">item</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">_os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
-                <span class="n">shutil</span><span class="o">.</span><span class="n">copytree</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">shutil</span><span class="o">.</span><span class="n">copy2</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
+        <span class="n">moved</span> <span class="o">=</span> <span class="n">remove_src_dir</span> <span class="ow">and</span> <span class="n">_rename_dir</span><span class="p">(</span><span class="n">src_dir</span><span class="p">,</span> <span class="n">dest_dir</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">moved</span><span class="p">:</span>
+            <span class="n">_os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">dest_dir</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="c1"># Copy files individually</span>
+            <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">_os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">src_dir</span><span class="p">):</span>
+                <span class="n">s</span> <span class="o">=</span> <span class="n">_os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">src_dir</span><span class="p">,</span> <span class="n">item</span><span class="p">)</span>
+                <span class="n">d</span> <span class="o">=</span> <span class="n">_os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">dest_dir</span><span class="p">,</span> <span class="n">item</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">_os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+                    <span class="n">shutil</span><span class="o">.</span><span class="n">copytree</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">shutil</span><span class="o">.</span><span class="n">copy2</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
 
         <span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
         <span class="k">while</span> <span class="ow">not</span> <span class="n">_os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">dest_dir</span><span class="p">)</span> <span class="ow">and</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">start_time</span> <span class="o">&lt;</span> <span class="n">max_wait</span><span class="p">:</span>
@@ -176,12 +196,12 @@
                     <span class="sa">f</span><span class="s2">"Script finished: </span><span class="si">{</span><span class="n">dest_dir</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
                 <span class="p">)</span>
 
-            <span class="k">if</span> <span class="n">remove_src_dir</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">remove_src_dir</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">moved</span><span class="p">:</span>
                 <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">src_dir</span><span class="p">)</span>
 
             <span class="c1"># Cleanup RUNNING when empty</span>
             <span class="n">running_base</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">src_dir</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">"/"</span><span class="p">))</span>
-            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">running_base</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"RUNNING"</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">remove_src_dir</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">running_base</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"RUNNING"</span><span class="p">:</span>
                 <span class="k">try</span><span class="p">:</span>
                     <span class="n">os</span><span class="o">.</span><span class="n">rmdir</span><span class="p">(</span><span class="n">running_base</span><span class="p">)</span>
                 <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
@@ -196,28 +216,45 @@
         <span class="c1"># FINISHED/&lt;session&gt;.tar.gz archive. ``archive_format=None``</span>
         <span class="c1"># keeps the original behavior unchanged.</span>
         <span class="k">if</span> <span class="n">archive_format</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">_os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">dest_dir</span><span class="p">):</span>
-            <span class="k">try</span><span class="p">:</span>
-                <span class="kn">from</span><span class="w"> </span><span class="nn">._archive</span><span class="w"> </span><span class="kn">import</span> <span class="n">archive_session_dir</span>
-
-                <span class="n">archive_path</span> <span class="o">=</span> <span class="n">archive_session_dir</span><span class="p">(</span>
-                    <span class="n">dest_dir</span><span class="p">,</span>
-                    <span class="nb">format</span><span class="o">=</span><span class="n">archive_format</span><span class="p">,</span>
-                    <span class="n">remove_src</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-                <span class="p">)</span>
-                <span class="n">CONFIG</span><span class="p">[</span><span class="s2">"SDIR_RUN"</span><span class="p">]</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">archive_path</span><span class="p">)</span>
-            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                    <span class="s2">"archive_format=</span><span class="si">%r</span><span class="s2"> failed for </span><span class="si">%s</span><span class="s2">: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
-                    <span class="n">archive_format</span><span class="p">,</span>
-                    <span class="n">dest_dir</span><span class="p">,</span>
-                    <span class="n">e</span><span class="p">,</span>
-                <span class="p">)</span>
+            <span class="n">_archive_into</span><span class="p">(</span><span class="n">CONFIG</span><span class="p">,</span> <span class="n">dest_dir</span><span class="p">,</span> <span class="n">archive_format</span><span class="p">)</span>
     <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">"</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
 
     <span class="k">finally</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">CONFIG</span></div>
 
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_rename_dir</span><span class="p">(</span><span class="n">src_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">dest_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Rename ``src_dir`` to ``dest_dir``; False when a rename cannot do it."""</span>
+    <span class="n">dest</span> <span class="o">=</span> <span class="n">dest_dir</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">_os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">lexists</span><span class="p">(</span><span class="n">dest</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="n">_os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">_os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">dest</span><span class="p">),</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">_os</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">src_dir</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">"/"</span><span class="p">),</span> <span class="n">dest</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>  <span class="c1"># EXDEV (another filesystem) and friends: copy instead</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="kc">True</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_archive_into</span><span class="p">(</span><span class="n">CONFIG</span><span class="p">,</span> <span class="n">dest_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">archive_format</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">._archive</span><span class="w"> </span><span class="kn">import</span> <span class="n">archive_session_dir</span>
+
+        <span class="n">archive_path</span> <span class="o">=</span> <span class="n">archive_session_dir</span><span class="p">(</span>
+            <span class="n">dest_dir</span><span class="p">,</span>
+            <span class="nb">format</span><span class="o">=</span><span class="n">archive_format</span><span class="p">,</span>
+            <span class="n">remove_src</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">CONFIG</span><span class="p">[</span><span class="s2">"SDIR_RUN"</span><span class="p">]</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">archive_path</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+            <span class="s2">"archive_format=</span><span class="si">%r</span><span class="s2"> failed for </span><span class="si">%s</span><span class="s2">: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
+            <span class="n">archive_format</span><span class="p">,</span>
+            <span class="n">dest_dir</span><span class="p">,</span>
+            <span class="n">e</span><span class="p">,</span>
+        <span class="p">)</span>
 
 
 <div class="viewcode-block" id="close">
@@ -231,6 +268,15 @@
     <span class="n">archive_format</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
 <span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Close experiment session and finalize logging.</span>
+
+<span class="sd">    Order matters for provenance (scitex-session#66): the run directory is</span>
+<span class="sd">    moved from ``RUNNING/&lt;ID&gt;`` to its ``FINISHED_*/&lt;ID&gt;`` location FIRST,</span>
+<span class="sd">    and only then are the close hooks fired — with ``relocations`` /</span>
+<span class="sd">    ``sdir_run_final`` in their metadata — so an observer that recorded</span>
+<span class="sd">    files under the transient ``RUNNING/&lt;ID&gt;`` path is told, at the moment</span>
+<span class="sd">    it finalises the run, where they now live (on every status: success,</span>
+<span class="sd">    error, other). The run config is saved after the hooks, in the final</span>
+<span class="sd">    directory, so it carries their failures and the final paths.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -249,24 +295,10 @@
 <span class="sd">        single archive file. ``None`` (default) preserves the original</span>
 <span class="sd">        copytree-only behavior bit-for-bit.</span>
 <span class="sd">    """</span>
-    <span class="c1"># Stop verification tracking first</span>
-    <span class="n">close_failures</span> <span class="o">=</span> <span class="n">_stop_verification</span><span class="p">(</span><span class="n">exit_status</span><span class="p">)</span>
-
     <span class="n">sys</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">hooks_fired</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">session_id</span> <span class="o">=</span> <span class="n">CONFIG</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"ID"</span><span class="p">)</span>
     <span class="k">try</span><span class="p">:</span>
-        <span class="n">hook_failures</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">CONFIG</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"_HOOK_FAILURES"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[])</span> <span class="o">+</span> <span class="n">close_failures</span>
-        <span class="n">CONFIG</span><span class="p">[</span><span class="s2">"_HOOK_FAILURES"</span><span class="p">]</span> <span class="o">=</span> <span class="n">hook_failures</span>
-        <span class="k">if</span> <span class="n">hook_failures</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                <span class="s2">"scitex-session: </span><span class="si">%d</span><span class="s2"> provenance hook failure(s) in session </span><span class="si">%s</span><span class="s2"> — "</span>
-                <span class="s2">"its provenance record is INCOMPLETE; details in "</span>
-                <span class="s2">"CONFIGS/CONFIG.yaml (_HOOK_FAILURES): </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
-                <span class="nb">len</span><span class="p">(</span><span class="n">hook_failures</span><span class="p">),</span>
-                <span class="n">CONFIG</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"ID"</span><span class="p">),</span>
-                <span class="s2">"; "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">f</span><span class="p">[</span><span class="s1">'phase'</span><span class="p">]</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">f</span><span class="p">[</span><span class="s1">'hook'</span><span class="p">]</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">f</span><span class="p">[</span><span class="s1">'error'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">hook_failures</span>
-                <span class="p">),</span>
-            <span class="p">)</span>
         <span class="n">CONFIG</span><span class="o">.</span><span class="n">EXIT_STATUS</span> <span class="o">=</span> <span class="n">exit_status</span>
         <span class="c1"># include_private: keep ``_PROVENANCE`` / ``_HOOK_FAILURES`` for</span>
         <span class="c1"># CONFIGS/CONFIG.yaml, and ``_sys`` so the tee'd log streams are</span>
@@ -275,11 +307,10 @@
         <span class="n">CONFIG</span> <span class="o">=</span> <span class="n">CONFIG</span><span class="o">.</span><span class="n">to_dict</span><span class="p">(</span><span class="n">include_private</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="n">CONFIG</span> <span class="o">=</span> <span class="n">process_timestamp</span><span class="p">(</span><span class="n">CONFIG</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
         <span class="n">sys</span> <span class="o">=</span> <span class="n">CONFIG</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">"_sys"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="n">restore</span> <span class="o">=</span> <span class="n">CONFIG</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">"_sys_restore"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
 
         <span class="c1"># CRITICAL: Close matplotlib BEFORE closing streams to prevent segfault</span>
         <span class="n">_cleanup_matplotlib</span><span class="p">(</span><span class="n">verbose</span><span class="p">)</span>
-
-        <span class="n">save_configs</span><span class="p">(</span><span class="n">CONFIG</span><span class="p">)</span>
 
         <span class="c1"># If archive_format wasn't passed explicitly, fall back to</span>
         <span class="c1"># ``CONFIG.SESSION.ARCHIVE_FORMAT`` if it's been set via user</span>
@@ -293,15 +324,44 @@
             <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
                 <span class="n">effective_archive_format</span> <span class="o">=</span> <span class="kc">None</span>
 
-        <span class="c1"># RUNNING to FINISHED</span>
-        <span class="n">CONFIG</span> <span class="o">=</span> <span class="n">running2finished</span><span class="p">(</span>
-            <span class="n">CONFIG</span><span class="p">,</span>
-            <span class="n">exit_status</span><span class="o">=</span><span class="n">exit_status</span><span class="p">,</span>
-            <span class="n">archive_format</span><span class="o">=</span><span class="n">effective_archive_format</span><span class="p">,</span>
-        <span class="p">)</span>
+        <span class="c1"># RUNNING to FINISHED (archiving, if any, comes after the hooks)</span>
+        <span class="n">running_dir</span> <span class="o">=</span> <span class="n">_real_dir</span><span class="p">(</span><span class="n">CONFIG</span><span class="p">[</span><span class="s2">"SDIR_RUN"</span><span class="p">])</span>
+        <span class="n">CONFIG</span> <span class="o">=</span> <span class="n">running2finished</span><span class="p">(</span><span class="n">CONFIG</span><span class="p">,</span> <span class="n">exit_status</span><span class="o">=</span><span class="n">exit_status</span><span class="p">)</span>
+        <span class="n">final_dir</span> <span class="o">=</span> <span class="n">_real_dir</span><span class="p">(</span><span class="n">CONFIG</span><span class="p">[</span><span class="s2">"SDIR_RUN"</span><span class="p">])</span>
+        <span class="n">relocations</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">final_dir</span> <span class="o">!=</span> <span class="n">running_dir</span> <span class="ow">and</span> <span class="n">_os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">final_dir</span><span class="p">):</span>
+            <span class="n">relocation</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"from"</span><span class="p">:</span> <span class="n">running_dir</span><span class="p">,</span> <span class="s2">"to"</span><span class="p">:</span> <span class="n">final_dir</span><span class="p">}</span>
+            <span class="k">if</span> <span class="n">effective_archive_format</span><span class="p">:</span>
+                <span class="n">relocation</span><span class="p">[</span><span class="s2">"archive"</span><span class="p">]</span> <span class="o">=</span> <span class="n">_archive_path</span><span class="p">(</span>
+                    <span class="n">final_dir</span><span class="p">,</span> <span class="n">effective_archive_format</span>
+                <span class="p">)</span>
+            <span class="n">relocations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">relocation</span><span class="p">)</span>
+
+        <span class="n">close_metadata</span> <span class="o">=</span> <span class="n">_close_metadata</span><span class="p">(</span><span class="n">CONFIG</span><span class="p">,</span> <span class="n">relocations</span><span class="p">,</span> <span class="n">final_dir</span><span class="p">)</span>
+        <span class="n">hooks_fired</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">close_failures</span> <span class="o">=</span> <span class="n">_stop_verification</span><span class="p">(</span><span class="n">exit_status</span><span class="p">,</span> <span class="n">close_metadata</span><span class="p">)</span>
+
+        <span class="n">hook_failures</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">CONFIG</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"_HOOK_FAILURES"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[])</span> <span class="o">+</span> <span class="n">close_failures</span>
+        <span class="n">CONFIG</span><span class="p">[</span><span class="s2">"_HOOK_FAILURES"</span><span class="p">]</span> <span class="o">=</span> <span class="n">hook_failures</span>
+        <span class="k">if</span> <span class="n">hook_failures</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s2">"scitex-session: </span><span class="si">%d</span><span class="s2"> provenance hook failure(s) in session </span><span class="si">%s</span><span class="s2"> — "</span>
+                <span class="s2">"its provenance record is INCOMPLETE; details in "</span>
+                <span class="s2">"CONFIGS/CONFIG.yaml (_HOOK_FAILURES): </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
+                <span class="nb">len</span><span class="p">(</span><span class="n">hook_failures</span><span class="p">),</span>
+                <span class="n">CONFIG</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"ID"</span><span class="p">),</span>
+                <span class="s2">"; "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">f</span><span class="p">[</span><span class="s1">'phase'</span><span class="p">]</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">f</span><span class="p">[</span><span class="s1">'hook'</span><span class="p">]</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">f</span><span class="p">[</span><span class="s1">'error'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">hook_failures</span>
+                <span class="p">),</span>
+            <span class="p">)</span>
+
+        <span class="n">save_configs</span><span class="p">(</span><span class="n">CONFIG</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">effective_archive_format</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">_os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">final_dir</span><span class="p">):</span>
+            <span class="n">_archive_into</span><span class="p">(</span><span class="n">CONFIG</span><span class="p">,</span> <span class="n">final_dir</span><span class="p">,</span> <span class="n">effective_archive_format</span><span class="p">)</span>
 
         <span class="c1"># ANSI code escape</span>
-        <span class="n">log_files</span> <span class="o">=</span> <span class="n">_glob</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">CONFIG</span><span class="p">[</span><span class="s2">"SDIR_RUN"</span><span class="p">])</span> <span class="o">+</span> <span class="s2">"logs/*.log"</span><span class="p">)</span>
+        <span class="n">log_files</span> <span class="o">=</span> <span class="n">_glob</span><span class="p">(</span><span class="n">_os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">CONFIG</span><span class="p">[</span><span class="s2">"SDIR_RUN"</span><span class="p">]),</span> <span class="s2">"logs"</span><span class="p">,</span> <span class="s2">"*.log"</span><span class="p">))</span>
         <span class="n">escape_ansi_from_log_files</span><span class="p">(</span><span class="n">log_files</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">CONFIG</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"ARGS"</span><span class="p">):</span>
@@ -326,13 +386,69 @@
 
         <span class="c1"># Close session</span>
         <span class="n">session_manager</span> <span class="o">=</span> <span class="n">get_global_session_manager</span><span class="p">()</span>
-        <span class="n">session_manager</span><span class="o">.</span><span class="n">close_session</span><span class="p">(</span><span class="n">CONFIG</span><span class="p">[</span><span class="s2">"ID"</span><span class="p">],</span> <span class="n">exit_code</span><span class="o">=</span><span class="n">exit_status</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">,</span> <span class="n">fire_hooks</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">session_manager</span><span class="o">.</span><span class="n">close_session</span><span class="p">(</span>
+            <span class="n">CONFIG</span><span class="p">[</span><span class="s2">"ID"</span><span class="p">],</span> <span class="n">exit_code</span><span class="o">=</span><span class="n">exit_status</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">,</span> <span class="n">fire_hooks</span><span class="o">=</span><span class="kc">False</span>
+        <span class="p">)</span>
 
     <span class="k">finally</span><span class="p">:</span>
+        <span class="c1"># Observers must always see the session end, even when closing</span>
+        <span class="c1"># failed before the hooks were reached (their run record would</span>
+        <span class="c1"># otherwise stay "running" forever).</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">hooks_fired</span><span class="p">:</span>
+            <span class="n">_stop_verification</span><span class="p">(</span><span class="n">exit_status</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="n">close_io_scope</span><span class="p">(</span><span class="n">session_id</span><span class="p">)</span>
         <span class="c1"># Only close if they're custom file objects (Tee objects)</span>
         <span class="k">if</span> <span class="n">sys</span><span class="p">:</span>
-            <span class="n">_close_streams</span><span class="p">(</span><span class="n">sys</span><span class="p">)</span></div>
+            <span class="n">_close_streams</span><span class="p">(</span><span class="n">sys</span><span class="p">)</span>
+            <span class="n">_restore_streams</span><span class="p">(</span><span class="n">sys</span><span class="p">,</span> <span class="n">restore</span><span class="p">)</span></div>
 
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_restore_streams</span><span class="p">(</span><span class="n">sys</span><span class="p">,</span> <span class="n">restore</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Put back the streams and logging handlers start() replaced."""</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">restore</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="n">stdout</span><span class="p">,</span> <span class="n">stderr</span> <span class="o">=</span> <span class="n">restore</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"streams"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">tee_out</span><span class="p">,</span> <span class="n">tee_err</span> <span class="o">=</span> <span class="n">restore</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"tees"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="c1"># only where our tee is still installed (a caller may have swapped it)</span>
+    <span class="k">if</span> <span class="n">stdout</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span> <span class="ow">is</span> <span class="n">tee_out</span><span class="p">:</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span> <span class="o">=</span> <span class="n">stdout</span>
+    <span class="k">if</span> <span class="n">stderr</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">sys</span><span class="o">.</span><span class="n">stderr</span> <span class="ow">is</span> <span class="n">tee_err</span><span class="p">:</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stderr</span> <span class="o">=</span> <span class="n">stderr</span>
+    <span class="k">for</span> <span class="n">handler</span><span class="p">,</span> <span class="n">stream</span> <span class="ow">in</span> <span class="n">restore</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"handlers"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]:</span>
+        <span class="n">handler</span><span class="o">.</span><span class="n">stream</span> <span class="o">=</span> <span class="n">stream</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_real_dir</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Real path of a run directory, without a trailing separator."""</span>
+    <span class="k">return</span> <span class="n">_os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">realpath</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">"/"</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_archive_path</span><span class="p">(</span><span class="n">final_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">archive_format</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">._archive._core</span><span class="w"> </span><span class="kn">import</span> <span class="n">format_to_suffix</span>
+
+    <span class="k">return</span> <span class="n">final_dir</span> <span class="o">+</span> <span class="n">format_to_suffix</span><span class="p">(</span><span class="n">archive_format</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_close_metadata</span><span class="p">(</span><span class="n">CONFIG</span><span class="p">,</span> <span class="n">relocations</span><span class="p">,</span> <span class="n">final_dir</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Close-time run metadata; also folded into ``CONFIG['_PROVENANCE']``."""</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">._provenance</span><span class="w"> </span><span class="kn">import</span> <span class="n">collect_close_metadata</span>
+
+    <span class="n">start</span> <span class="o">=</span> <span class="n">CONFIG</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"_PROVENANCE"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+    <span class="n">script</span> <span class="o">=</span> <span class="n">CONFIG</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"FILE"</span><span class="p">)</span>
+    <span class="n">meta</span> <span class="o">=</span> <span class="n">collect_close_metadata</span><span class="p">(</span>
+        <span class="n">start</span><span class="p">,</span>
+        <span class="n">script_path</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">script</span><span class="p">)</span> <span class="k">if</span> <span class="n">script</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">relocations</span><span class="o">=</span><span class="n">relocations</span><span class="p">,</span>
+        <span class="n">sdir_run_final</span><span class="o">=</span><span class="n">final_dir</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="c1"># scitex-io's lost-provenance tally for this run (see _io_scope.py)</span>
+    <span class="n">meta</span><span class="p">[</span><span class="s2">"io_provenance"</span><span class="p">]</span> <span class="o">=</span> <span class="n">close_io_scope</span><span class="p">(</span><span class="n">CONFIG</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"ID"</span><span class="p">))</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="n">merged</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">start</span><span class="p">)</span>
+        <span class="n">merged</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">meta</span><span class="p">)</span>
+        <span class="n">CONFIG</span><span class="p">[</span><span class="s2">"_PROVENANCE"</span><span class="p">]</span> <span class="o">=</span> <span class="n">merged</span>
+    <span class="k">return</span> <span class="n">meta</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_cleanup_matplotlib</span><span class="p">(</span><span class="n">verbose</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -387,17 +503,21 @@
         <span class="k">pass</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_stop_verification</span><span class="p">(</span><span class="n">exit_status</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_stop_verification</span><span class="p">(</span><span class="n">exit_status</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Fire the session-close hooks (e.g. clew lineage).</span>
 
 <span class="sd">    Dispatches via the acyclic registry; session never imports the</span>
-<span class="sd">    subscriber. See _hooks.py. Returns the failure records of any hook that</span>
-<span class="sd">    raised (each one already logged as a WARNING) — never swallowed.</span>
+<span class="sd">    subscriber. See _hooks.py. ``metadata`` (close-time run metadata, see</span>
+<span class="sd">    :func:`_close_metadata`) reaches every hook that accepts it. Returns the</span>
+<span class="sd">    failure records of any hook that raised (each one already logged as a</span>
+<span class="sd">    WARNING) — never swallowed.</span>
 <span class="sd">    """</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">.._hooks</span><span class="w"> </span><span class="kn">import</span> <span class="n">_fire_session_close_hooks</span>
 
     <span class="n">status</span> <span class="o">=</span> <span class="s2">"success"</span> <span class="k">if</span> <span class="n">exit_status</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="s2">"failed"</span>
-    <span class="k">return</span> <span class="n">_fire_session_close_hooks</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="n">status</span><span class="p">,</span> <span class="n">exit_code</span><span class="o">=</span><span class="n">exit_status</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">_fire_session_close_hooks</span><span class="p">(</span>
+        <span class="n">status</span><span class="o">=</span><span class="n">status</span><span class="p">,</span> <span class="n">exit_code</span><span class="o">=</span><span class="n">exit_status</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="n">metadata</span>
+    <span class="p">)</span>
 
 
 <span class="c1"># EOF</span>
